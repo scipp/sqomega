@@ -16,3 +16,18 @@ class SqwFileHeader:
     prog_version: float
     sqw_type: SqwFileType
     n_dims: int
+
+
+class SqwDataBlockType(enum.Enum):
+    regular = "data_block"
+    pix = "pix_data_block"
+    dnd = "dnd_data_block"
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class SqwDataBlockDescriptor:
+    block_type: SqwDataBlockType
+    name: tuple[str, str]
+    position: int  # u64
+    size: int  # u32
+    locked: bool  # u32

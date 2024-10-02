@@ -25,7 +25,7 @@ def _annotate_read_exception(
         def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
             try:
                 return func(*args, **kwargs)
-            except ValueError as exc:
+            except (ValueError, UnicodeDecodeError) as exc:
                 sqw_io: LowLevelSqw = args[0]  # type: ignore[assignment]
                 _add_note_to_read_exception(exc, sqw_io, ty)
                 raise
@@ -61,9 +61,24 @@ class LowLevelSqw:
         self._byteorder = _deduce_byteorder(self._file, byteorder=byteorder)
         self._path = path
 
+    @_annotate_read_exception("logical")
+    def read_logical(self) -> bool:
+        buf = self._file.read(1)
+        return buf != b'\x00'
+
+    @_annotate_read_exception("u8")
+    def read_u8(self) -> int:
+        buf = self._file.read(1)
+        return int.from_bytes(buf, self._byteorder.get())
+
     @_annotate_read_exception("u32")
     def read_u32(self) -> int:
         buf = self._file.read(4)
+        return int.from_bytes(buf, self._byteorder.get())
+
+    @_annotate_read_exception("u32")
+    def read_u64(self) -> int:
+        buf = self._file.read(8)
         return int.from_bytes(buf, self._byteorder.get())
 
     @_annotate_read_exception("f64")
@@ -79,7 +94,14 @@ class LowLevelSqw:
     @_annotate_read_exception("char array")
     def read_char_array(self) -> str:
         size = self.read_u32()
-        return self._file.read(size).decode('utf-8')
+        return self.read_n_chars(size)
+
+    @_annotate_read_exception("n chars")
+    def read_n_chars(self, n: int) -> str:
+        return self._file.read(n).decode('utf-8')
+
+    def seek(self, pos: int) -> None:
+        self._file.seek(pos)
 
     @property
     def byteorder(self) -> Byteorder:

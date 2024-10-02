@@ -32,14 +32,16 @@ class Byteorder(enum.Enum):
 
 
 class TypeTag(enum.Enum):
-    logical = b'\x00'
-    char = b'\x01'
-    double = b'\x03'
-    int8 = b'\x05'
-    uint8 = b'\x06'
-    int32 = b'\x09'
-    uint32 = b'\x0a'
-    int64 = b'\x0b'
-    uint64 = b'\x0c'
-    cell = b'\x17'
-    struct = b'\x18'
+    # Gaps in values are unsupported types.
+    logical = 0
+    char = 1
+    f64 = 3
+    f32 = 4
+    i8 = 5
+    u8 = 6
+    i32 = 9
+    u32 = 10
+    i64 = 11
+    u64 = 12
+    cell = 23
+    struct = 24
