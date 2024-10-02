@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from io import BytesIO
 from os import PathLike
+from pathlib import Path
 from typing import BinaryIO, Literal
 
 from ._bytes import Byteorder
@@ -30,7 +31,10 @@ class SQW:
         byteorder: Byteorder | Literal["little", "big"] | None = None,
     ) -> Iterator[SQW]:
         with open_binary(path, 'rb') as f:
-            sqw_io = LowLevelSqw(f, byteorder=Byteorder.parse(byteorder))
+            stored_path = None if isinstance(path, BinaryIO | BytesIO) else Path(path)
+            sqw_io = LowLevelSqw(
+                f, path=stored_path, byteorder=Byteorder.parse(byteorder)
+            )
             file_header = _read_header(sqw_io)
             yield SQW(sqw_io=sqw_io, file_header=file_header)
 
