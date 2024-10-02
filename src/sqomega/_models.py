@@ -5,14 +5,14 @@ import enum
 from dataclasses import dataclass
 
 
-class SQWFileType(enum.Enum):
+class SqwFileType(enum.Enum):
     DND = 0
     SQW = 1
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class SQWFileHeader:
+class SqwFileHeader:
     prog_name: str
     prog_version: float
-    sqw_type: SQWFileType
+    sqw_type: SqwFileType
     n_dims: int

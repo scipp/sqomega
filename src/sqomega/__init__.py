@@ -11,6 +11,8 @@ except importlib.metadata.PackageNotFoundError:
 
 del importlib
 
-from ._reader import SQWReader
+from ._sqw import SQW
+from ._bytes import Byteorder
+from ._models import SqwFileType, SqwFileHeader
 
-__all__ = ["SQWReader"]
+__all__ = ["Byteorder", "SQW", "SqwFileType", "SqwFileHeader"]
