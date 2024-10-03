@@ -13,6 +13,6 @@ del importlib
 
 from ._sqw import SQW
 from ._bytes import Byteorder
-from ._models import SqwFileType, SqwFileHeader
+from ._models import SqwFileType, SqwFileHeader, SqwMainHeader
 
-__all__ = ["Byteorder", "SQW", "SqwFileType", "SqwFileHeader"]
+__all__ = ["Byteorder", "SqwMainHeader", "SQW", "SqwFileType", "SqwFileHeader"]

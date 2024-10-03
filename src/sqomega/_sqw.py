@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
-import dataclasses
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from io import BytesIO
 from os import PathLike
 from pathlib import Path
-from typing import Any, BinaryIO, Literal, TypeVar
+from typing import Any, BinaryIO, Literal
 
-from ._bytes import Byteorder, TypeTag
+from dateutil.parser import parse as parse_datetime
+
+from ._bytes import Byteorder
 from ._files import open_binary
 from ._low_level_io import LowLevelSqw
 from ._models import (
@@ -20,9 +21,9 @@ from ._models import (
     SqwDataBlockType,
     SqwFileHeader,
     SqwFileType,
+    SqwMainHeader,
 )
-
-_T = TypeVar("_T")
+from ._read_write import read_objects
 
 
 class SQW:
@@ -31,11 +32,11 @@ class SQW:
         *,
         sqw_io: LowLevelSqw,
         file_header: SqwFileHeader,
-        data_block_descriptors: dict[tuple[str, str], SqwDataBlockDescriptor],
+        block_allocation_table: dict[tuple[str, str], SqwDataBlockDescriptor],
     ) -> None:
         self._sqw_io = sqw_io
         self._file_header = file_header
-        self._data_block_descriptors = data_block_descriptors
+        self._block_allocation_table = block_allocation_table
 
     @classmethod
     @contextmanager
@@ -44,19 +45,19 @@ class SQW:
         path: str | PathLike[str] | BinaryIO | BytesIO,
         *,
         byteorder: Byteorder | Literal["little", "big"] | None = None,
-    ) -> Iterator[SQW]:
+    ) -> Generator[SQW, None, None]:
         with open_binary(path, 'rb') as f:
             stored_path = None if isinstance(path, BinaryIO | BytesIO) else Path(path)
             sqw_io = LowLevelSqw(
                 f, path=stored_path, byteorder=Byteorder.parse(byteorder)
             )
             file_header = _read_file_header(sqw_io)
-            _ = sqw_io.read_u32()  # TODO don't know what this is
+            _descriptors_size = sqw_io.read_u32()  # don't need this
             data_block_descriptors = _read_data_block_descriptors(sqw_io)
             yield SQW(
                 sqw_io=sqw_io,
                 file_header=file_header,
-                data_block_descriptors=data_block_descriptors,
+                block_allocation_table=data_block_descriptors,
             )
 
     @property
@@ -67,97 +68,15 @@ class SQW:
     def byteorder(self) -> Byteorder:
         return self._sqw_io.byteorder
 
-    def get_data_block(self, name: tuple[str, str]) -> Any:
+    def read_data_block(self, name: tuple[str, str]) -> Any:
         try:
-            block_descriptor = self._data_block_descriptors[name]
+            block_descriptor = self._block_allocation_table[name]
         except KeyError:
             raise KeyError(f"No data block {name!r} in file") from None
 
+        # TODO branch on block type
         self._sqw_io.seek(block_descriptor.position)
-        return _squeeze(_read_objects(self._sqw_io))
-
-
-def _read_objects(sqw_io: LowLevelSqw) -> Any:
-    type_tag = sqw_io.read_u8()
-    n_dims = sqw_io.read_u8()
-    if type_tag == TypeTag.char.value:
-        # Special case to properly decode string
-        return _read_char_arrays(sqw_io, n_dims)
-
-    shape = tuple(sqw_io.read_u32() for _ in range(n_dims))
-
-    try:
-        reader = _READERS_PER_TYPE[type_tag]
-    except KeyError:
-        raise NotImplementedError(f"No reader for SQW type {type_tag}") from None
-    return _read_nd_object_array(sqw_io, shape, reader)
-
-
-def _read_nd_object_array(
-    sqw_io: LowLevelSqw, shape: tuple[int, ...], reader
-) -> list[Any]:
-    if len(shape) == 1:
-        return [reader(sqw_io) for _ in range(shape[0])]
-    return [_read_nd_object_array(sqw_io, shape[1:], reader) for _ in range(shape[0])]
-
-
-def _read_char_arrays(sqw_io: LowLevelSqw, n_dims: int) -> str:
-    if n_dims == 0:
-        return ""
-    if n_dims != 1:
-        raise NotImplementedError(
-            f"Cannot read char arrays with more than one dimension, got {n_dims}"
-        )
-    return sqw_io.read_char_array()
-
-
-def _read_cell(sqw_io: LowLevelSqw) -> Any:
-    return _read_objects(sqw_io)
-
-
-def _read_struct(sqw_io: LowLevelSqw) -> Any:
-    n_fields = sqw_io.read_u32()
-    field_name_sizes = [sqw_io.read_u32() for _ in range(n_fields)]
-    field_names = [sqw_io.read_n_chars(size) for size in field_name_sizes]
-    field_values = _read_objects(sqw_io)
-    field_values = _squeeze(field_values)
-
-    return dataclasses.make_dataclass(
-        _struct_serial_name(field_names, field_values),
-        (
-            _make_struct_field(name, value)
-            for name, value in zip(field_names, field_values, strict=True)
-        ),
-        frozen=True,
-        slots=True,
-    )()
-
-
-def _make_struct_field(name: str, value: Any) -> tuple[str, Any, dataclasses.Field]:
-    return name, type(value), dataclasses.field(default_factory=lambda: value)
-
-
-def _struct_serial_name(field_names: list[str], field_values: list[Any]) -> str:
-    try:
-        return str(
-            next(
-                iter(
-                    value
-                    for name, value in zip(field_names, field_values, strict=True)
-                    if name == 'serial_name'
-                )
-            )
-        )
-    except StopIteration:
-        return "unknown"
-
-
-_READERS_PER_TYPE = {
-    TypeTag.logical.value: LowLevelSqw.read_logical,
-    TypeTag.f64.value: LowLevelSqw.read_f64,
-    TypeTag.cell.value: _read_cell,
-    TypeTag.struct.value: _read_struct,
-}
+        return _parse_block(read_objects(self._sqw_io))
 
 
 def _read_file_header(sqw_io: LowLevelSqw) -> SqwFileHeader:
@@ -172,6 +91,9 @@ def _read_file_header(sqw_io: LowLevelSqw) -> SqwFileHeader:
         )
 
     sqw_type = SqwFileType(sqw_io.read_u32())
+    if sqw_type != SqwFileType.SQW:
+        warnings.warn("DND files are not supported", UserWarning, stacklevel=2)
+
     n_dims = sqw_io.read_u32()
     return SqwFileHeader(
         prog_name=prog_name, prog_version=prog_version, sqw_type=sqw_type, n_dims=n_dims
@@ -197,9 +119,24 @@ def _read_data_block_descriptor(sqw_io: LowLevelSqw) -> SqwDataBlockDescriptor:
     )
 
 
-def _squeeze(nd_list: list[_T] | _T) -> list[_T] | _T:
-    if isinstance(nd_list, list):
-        if len(nd_list) == 1:
-            return _squeeze(nd_list[0])
-        return [_squeeze(item) for item in nd_list]
-    return nd_list
+def _parse_block(block: object) -> Any:
+    key = (getattr(block, 'serial_name', None), getattr(block, 'version', None))
+    try:
+        parser = _BLOCK_PARSERS[key]
+    except KeyError:
+        return block
+    return parser(block)
+
+
+def _parse_main_header_cl_2_0(obj: Any) -> SqwMainHeader:
+    return SqwMainHeader(
+        full_filename=obj.full_filename,
+        title=obj.title,
+        nfiles=int(obj.nfiles),
+        creation_date=parse_datetime(obj.creation_date),
+    )
+
+
+_BLOCK_PARSERS = {
+    (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
+}

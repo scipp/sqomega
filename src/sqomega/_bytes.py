@@ -45,3 +45,4 @@ class TypeTag(enum.Enum):
     u64 = 12
     cell = 23
     struct = 24
+    serializable = 32  # objects that 'serialize themselves'
