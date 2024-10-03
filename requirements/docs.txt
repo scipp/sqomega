@@ -56,7 +56,7 @@ imagesize==1.4.1
     # via sphinx
 ipykernel==6.29.5
     # via -r docs.in
-ipython==8.27.0
+ipython==8.28.0
     # via
     #   -r docs.in
     #   ipykernel
@@ -149,8 +149,6 @@ pygments==2.18.0
     #   nbconvert
     #   pydata-sphinx-theme
     #   sphinx
-python-dateutil==2.9.0.post0
-    # via jupyter-client
 pyyaml==6.0.2
     # via myst-parser
 pyzmq==26.2.0
@@ -167,11 +165,6 @@ rpds-py==0.20.0
     # via
     #   jsonschema
     #   referencing
-six==1.16.0
-    # via
-    #   asttokens
-    #   bleach
-    #   python-dateutil
 snowballstemmer==2.2.0
     # via sphinx
 soupsieve==2.6
@@ -207,7 +200,7 @@ stack-data==0.6.3
     # via ipython
 tinycss2==1.3.0
     # via nbconvert
-tomli==2.0.1
+tomli==2.0.2
     # via sphinx
 tornado==6.4.1
     # via
