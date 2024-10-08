@@ -139,8 +139,8 @@ class LowLevelSqw:
     def read_array(
         self, shape: tuple[int, ...], dtype: np.dtype[_E]
     ) -> npt.NDArray[_E]:
-        # TODO byteorder
         count = int(np.prod(shape))
+        dtype = dtype.newbyteorder(self.byteorder.value)
         if isinstance(self._file, BytesIO):
             flat = np.frombuffer(
                 self._file.getbuffer(), offset=self.position, dtype=dtype, count=count
@@ -189,9 +189,12 @@ class LowLevelSqw:
 
     @_annotate_write_exception("array")
     def write_array(self, array: npt.NDArray[np.float64]) -> None:
-        # TODO byteorder
         # TODO element order
-        array.tofile(self._file)
+        (
+            array.astype(
+                array.dtype.newbyteorder(self.byteorder.value), copy=False
+            ).tofile(self._file)
+        )
 
     @_annotate_write_exception("bytes")
     def write_raw(self, value: bytes | memoryview) -> None:

@@ -4,6 +4,9 @@
 import sys
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from typing import Literal
+
+import pytest
 
 from sqomega import Byteorder, Sqw
 
@@ -75,9 +78,12 @@ def test_create_writes_file_header_big_endian() -> None:
     assert buffer.read(len(expected)) == expected
 
 
-def test_create_writes_main_header() -> None:
+@pytest.mark.parametrize('byteorder', ['native', 'little', 'big'])
+def test_create_writes_main_header(
+    byteorder: Literal['native', 'little', 'big'],
+) -> None:
     buffer = BytesIO()
-    builder = Sqw.build(buffer, title='my title', byteorder="little")
+    builder = Sqw.build(buffer, title='my title', byteorder=byteorder)
     with builder.create():
         pass
     buffer.seek(0)
@@ -90,6 +96,3 @@ def test_create_writes_main_header() -> None:
     assert (main_header.creation_date - datetime.now(tz=timezone.utc)) < timedelta(
         seconds=1
     )
-
-
-# TODO test byteorder of arrays (e.g., in detpar)
