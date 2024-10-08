@@ -41,6 +41,7 @@ def write_object_array(sqw_io: LowLevelSqw, objects: ir.ObjectArray) -> None:
     position = sqw_io.position
     sqw_io.write_u8(objects.ty.value)
     sqw_io.write_u8(len(objects.shape))
+
     for size in objects.shape:
         sqw_io.write_u32(size)
 

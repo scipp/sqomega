@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2024 Scipp contributors (https://github.com/scipp)
 
+from __future__ import annotations
+
 import enum
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import ClassVar
 
 from . import _ir as ir
+
+DataBlockName = tuple[str, str]
 
 
 class SqwFileType(enum.Enum):
@@ -31,7 +35,7 @@ class SqwDataBlockType(enum.Enum):
 @dataclass(frozen=True, kw_only=True, slots=True)
 class SqwDataBlockDescriptor:
     block_type: SqwDataBlockType
-    name: tuple[str, str]
+    name: DataBlockName
     position: int  # u64
     size: int  # u32
     locked: bool  # u32
@@ -57,3 +61,6 @@ class SqwMainHeader(ir.Serializable):
             "creation_date": ir.Datetime(self.creation_date),
             "creation_date_defined_privately": ir.Logical(False),
         }
+
+    def prepare_for_serialization(self) -> SqwMainHeader:
+        return replace(self, creation_date=datetime.now(tz=timezone.utc))

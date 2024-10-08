@@ -53,6 +53,13 @@ class Struct:
     field_values: CellArray
     ty: ClassVar[TypeTag] = TypeTag.struct
 
+    def to_object_array(self) -> ObjectArray:
+        return ObjectArray(
+            ty=self.ty,
+            shape=(1,),
+            data=[self],
+        )
+
 
 @dataclass()
 class String:
@@ -111,17 +118,19 @@ class Serializable(ABC):
             field_values=CellArray(
                 shape=(len(fields), 1),  # HORACE uses a 2D array
                 data=[
-                    ObjectArray(ty=field.ty, shape=(1,), data=[_serialize_field(field)])
+                    ObjectArray(ty=field.ty, **_serialize_field(field))
                     for field in fields.values()
                 ],
             ),
         )
 
-    def prepare_for_serialization(self: _T) -> _T:
+    def prepare_for_serialization(self: _T) -> _T:  # noqa: PYI019
         return self
 
 
-def _serialize_field(field: Object) -> Object:
+def _serialize_field(field: Object) -> dict[str, tuple[int, ...] | Object]:
     if isinstance(field, Datetime):
-        return String(value=field.value.isoformat(timespec='seconds'))
-    return field
+        field = String(value=field.value.isoformat(timespec='seconds'))
+    if isinstance(field, String):
+        return {'shape': (len(field.value),), 'data': [field]}
+    return {'shape': (1,), 'data': [field]}

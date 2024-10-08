@@ -57,7 +57,7 @@ def _annotate_write_exception(
                 return func(*args, **kwargs)
             except (ValueError, UnicodeEncodeError, OverflowError) as exc:
                 sqw_io: LowLevelSqw = args[0]  # type: ignore[assignment]
-                _add_note_to_read_exception(exc, sqw_io, ty)
+                _add_note_to_write_exception(exc, sqw_io, ty)
                 raise
 
         return wrapper
@@ -161,10 +161,14 @@ class LowLevelSqw:
         self.write_u32(len(encoded))
         self._file.write(encoded)
 
-    @_annotate_write_exception("n chars")
+    @_annotate_write_exception("char array")
     def write_chars(self, value: str) -> None:
         encoded = value.encode('utf-8')
         self._file.write(encoded)
+
+    @_annotate_write_exception("bytes")
+    def write_raw(self, value: bytes | memoryview) -> None:
+        self._file.write(value)
 
     def seek(self, pos: int) -> None:
         self._file.seek(pos)

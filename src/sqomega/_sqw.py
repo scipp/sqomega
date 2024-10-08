@@ -13,10 +13,12 @@ from typing import Any, BinaryIO, Literal
 
 from dateutil.parser import parse as parse_datetime
 
+from ._build import SqwBuilder
 from ._bytes import Byteorder
 from ._files import open_binary
 from ._low_level_io import LowLevelSqw
 from ._models import (
+    DataBlockName,
     SqwDataBlockDescriptor,
     SqwDataBlockType,
     SqwFileHeader,
@@ -32,7 +34,7 @@ class Sqw:
         *,
         sqw_io: LowLevelSqw,
         file_header: SqwFileHeader,
-        block_allocation_table: dict[tuple[str, str], SqwDataBlockDescriptor],
+        block_allocation_table: dict[DataBlockName, SqwDataBlockDescriptor],
     ) -> None:
         self._sqw_io = sqw_io
         self._file_header = file_header
@@ -62,6 +64,16 @@ class Sqw:
                 block_allocation_table=data_block_descriptors,
             )
 
+    @classmethod
+    def build(
+        cls,
+        path: str | PathLike[str] | BinaryIO | BytesIO,
+        *,
+        title: str = '',
+        byteorder: Byteorder | Literal["native", "little", "big"] = "native",
+    ) -> SqwBuilder:
+        return SqwBuilder(path, title, byteorder=Byteorder.parse(byteorder))
+
     @property
     def file_header(self) -> SqwFileHeader:
         return self._file_header
@@ -70,7 +82,7 @@ class Sqw:
     def byteorder(self) -> Byteorder:
         return self._sqw_io.byteorder
 
-    def read_data_block(self, name: tuple[str, str]) -> Any:
+    def read_data_block(self, name: DataBlockName) -> Any:
         try:
             block_descriptor = self._block_allocation_table[name]
         except KeyError:
@@ -104,7 +116,7 @@ def _read_file_header(sqw_io: LowLevelSqw) -> SqwFileHeader:
 
 def _read_data_block_descriptors(
     sqw_io: LowLevelSqw,
-) -> dict[tuple[str, str], SqwDataBlockDescriptor]:
+) -> dict[DataBlockName, SqwDataBlockDescriptor]:
     n_blocks = sqw_io.read_u32()
     descriptors = (_read_data_block_descriptor(sqw_io) for _ in range(n_blocks))
     return {descriptor.name: descriptor for descriptor in descriptors}
