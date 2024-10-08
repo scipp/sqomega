@@ -90,3 +90,6 @@ def test_create_writes_main_header() -> None:
     assert (main_header.creation_date - datetime.now(tz=timezone.utc)) < timedelta(
         seconds=1
     )
+
+
+# TODO test byteorder of arrays (e.g., in detpar)

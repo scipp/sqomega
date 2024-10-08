@@ -9,7 +9,9 @@ import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar
+
+import numpy.typing as npt
 
 _T = TypeVar('_T')
 
@@ -35,9 +37,9 @@ class TypeTag(enum.Enum):
 
 @dataclass(kw_only=True)
 class ObjectArray:
-    ty: TypeTag
     shape: tuple[int, ...]
-    data: list[Object]
+    data: list[Object] | npt.NDArray[Any]
+    ty: TypeTag
 
 
 @dataclass(kw_only=True)

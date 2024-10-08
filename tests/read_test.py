@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sqomega import Byteorder, Sqw, SqwFileHeader, SqwFileType, SqwMainHeader
+from sqomega import Byteorder, Sqw, SqwFileHeader, SqwFileType
 
 # TODO actual files in filesystem
 
@@ -128,15 +128,4 @@ def test_read_main_header(intact_v4_sqw: Path) -> None:
     assert type(main_header.nfiles) is int  # because it is encoded as f64 in file
     assert main_header.nfiles == 23
     # TODO can we encode a timezone? How does horace react?
-    assert main_header.creation_date == datetime(2024, 9, 16, 9, 32, 30)
-
-
-# def test_read_detpar(intact_v4_sqw: Path) -> None:
-#     with SQW.open(intact_v4_sqw) as sqw:
-#         print(sqw._block_allocation_table[('', 'detpar')])
-#         detpar = sqw.read_data_block(('', 'detpar'))
-#         print(sqw._sqw_io.position)
-#     # print(detpar)
-#     with open('asd.txt', 'w') as f:
-#         f.write(str(detpar))
-#     assert False
+    assert main_header.creation_date == datetime(2024, 9, 16, 9, 32, 30)  # noqa: DTZ001

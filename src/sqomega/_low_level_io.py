@@ -6,13 +6,18 @@ from __future__ import annotations
 import functools
 import struct
 from collections.abc import Callable
+from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, ParamSpec, TypeVar
+
+import numpy as np
+import numpy.typing as npt
 
 from ._bytes import Byteorder
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
+_T = TypeVar("_T")
 
 
 def _annotate_read_exception(
@@ -130,6 +135,22 @@ class LowLevelSqw:
     def read_n_chars(self, n: int) -> str:
         return self._file.read(n).decode('utf-8')
 
+    @_annotate_read_exception("array")
+    def read_array(
+        self, shape: tuple[int, ...], dtype: np.dtype[_T]
+    ) -> npt.NDArray[np.dtype[_T]]:
+        # TODO byteorder
+        count = int(np.prod(shape))
+        if isinstance(self._file, BytesIO):
+            flat = np.frombuffer(
+                self._file.getbuffer(), offset=self.position, dtype=dtype, count=count
+            )
+            self._file.seek(self.position + count * dtype.itemsize)
+        else:
+            flat = np.fromfile(self._file, dtype=dtype, count=np.prod(shape))
+        # Invert the shape because files use column-major layout.
+        return flat.reshape(shape[::-1])
+
     @_annotate_write_exception("logical")
     def write_logical(self, value: bool) -> None:
         self._file.write(value.to_bytes(1, self._byteorder.get()))
@@ -165,6 +186,12 @@ class LowLevelSqw:
     def write_chars(self, value: str) -> None:
         encoded = value.encode('utf-8')
         self._file.write(encoded)
+
+    @_annotate_write_exception("array")
+    def write_array(self, array: npt.NDArray[np.float64]) -> None:
+        # TODO byteorder
+        # TODO element order
+        array.tofile(self._file)
 
     @_annotate_write_exception("bytes")
     def write_raw(self, value: bytes | memoryview) -> None:

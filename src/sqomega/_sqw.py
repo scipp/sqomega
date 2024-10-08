@@ -11,8 +11,11 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
+import numpy as np
+import numpy.typing as npt
 from dateutil.parser import parse as parse_datetime
 
+from . import _ir as ir
 from ._build import SqwBuilder
 from ._bytes import Byteorder
 from ._files import open_binary
@@ -25,7 +28,7 @@ from ._models import (
     SqwFileType,
     SqwMainHeader,
 )
-from ._read_write import read_objects
+from ._read_write import read_object_array
 
 
 class Sqw:
@@ -82,15 +85,22 @@ class Sqw:
     def byteorder(self) -> Byteorder:
         return self._sqw_io.byteorder
 
-    def read_data_block(self, name: DataBlockName) -> Any:
+    def read_data_block(self, name: DataBlockName) -> Any:  # TODO type
         try:
             block_descriptor = self._block_allocation_table[name]
         except KeyError:
             raise KeyError(f"No data block {name!r} in file") from None
 
-        # TODO branch on block type
         self._sqw_io.seek(block_descriptor.position)
-        return _parse_block(read_objects(self._sqw_io))
+        match block_descriptor.block_type:
+            case SqwDataBlockType.regular:
+                return _parse_block(read_object_array(self._sqw_io))
+            case SqwDataBlockType.pix:
+                return _read_pix_block(self._sqw_io)
+            case _:
+                raise NotImplementedError(
+                    f"Unsupported data block type: {block_descriptor.block_type}"
+                )
 
 
 def _read_file_header(sqw_io: LowLevelSqw) -> SqwFileHeader:
@@ -133,24 +143,85 @@ def _read_data_block_descriptor(sqw_io: LowLevelSqw) -> SqwDataBlockDescriptor:
     )
 
 
-def _parse_block(block: object) -> Any:
-    key = (getattr(block, 'serial_name', None), getattr(block, 'version', None))
+class AbortParse(Exception): ...
+
+
+def _parse_block(block: ir.ObjectArray) -> Any:
+    from rich import print
+
+    print(block)
+    try:
+        return _try_parse_block(block)
+    except AbortParse as abort:
+        warnings.warn(
+            f"Unable to parse SQW block: {abort.args[0]}", UserWarning, stacklevel=2
+        )
+        return block
+
+
+def _try_parse_block(block: ir.ObjectArray) -> Any:
+    if block.shape != (1,):
+        raise AbortParse(f"Unsupported block shape: {block.shape}")
+    if block.ty != ir.TypeTag.struct:
+        raise AbortParse(f"Unsupported block type: {block.shape}, expected struct")
+    struct: ir.Struct = block.data[0]
+    if sum(s != 1 for s in struct.field_values.shape) != 1:
+        raise AbortParse(
+            "Contents cannot be a multi-dimensional cell array, "
+            f"got shape {struct.field_values.shape}"
+        )
+
+    key = _get_struct_type_id(struct)
     try:
         parser = _BLOCK_PARSERS[key]
     except KeyError:
-        return block
-    return parser(block)
+        raise AbortParse(f"No parser for struct type {key}") from None
+    return parser(struct)
 
 
-def _parse_main_header_cl_2_0(obj: Any) -> SqwMainHeader:
+def _get_struct_type_id(struct) -> tuple[str, float] | None:
+    name = _get_struct_field(struct, 'serial_name')
+    if len(name.shape) != 1:
+        raise AbortParse("'serial_name' is multi-dimensional")
+    version = _get_struct_field(struct, 'version')
+    if version.shape != (1,):
+        raise AbortParse("'version' is multi-dimensional")
+
+    return name.data[0].value, version.data[0].value
+
+
+def _get_struct_field(struct: ir.Struct, name: str) -> ir.ObjectArray:
+    for field_name, value in zip(
+        struct.field_names, struct.field_values.data, strict=True
+    ):
+        if field_name == name:
+            return value
+    raise AbortParse(f"No field '{name}' in struct")
+
+
+def _get_scalar_struct_field(struct: ir.Struct, name: str) -> Any:
+    field = _get_struct_field(struct, name)
+    shape = field.shape[1:] if field.ty == ir.TypeTag.char else field.shape
+    if shape not in ((1,), ()):
+        raise AbortParse(f"Field '{name}' has non-scalar shape: {shape}")
+    return field.data[0].value
+
+
+def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
     return SqwMainHeader(
-        full_filename=obj.full_filename,
-        title=obj.title,
-        nfiles=int(obj.nfiles),
-        creation_date=parse_datetime(obj.creation_date),
+        full_filename=_get_scalar_struct_field(struct, 'full_filename'),
+        title=_get_scalar_struct_field(struct, 'title'),
+        nfiles=int(_get_scalar_struct_field(struct, 'nfiles')),
+        creation_date=parse_datetime(_get_scalar_struct_field(struct, 'creation_date')),
     )
 
 
 _BLOCK_PARSERS = {
     (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
 }
+
+
+def _read_pix_block(sqw_io: LowLevelSqw) -> npt.NDArray[np.float32]:
+    n_rows = sqw_io.read_u32()
+    n_pixels = sqw_io.read_u64()
+    return sqw_io.read_array((n_rows, n_pixels), np.dtype('float32'))

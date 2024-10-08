@@ -48,7 +48,7 @@ class SqwBuilder:
             full_filename=os.fspath(self._stored_path or ''),
             title=title,
             nfiles=0,
-            # To be replaced when writing the file
+            # To be replaced when writing the file.
             creation_date=datetime(1, 1, 1, tzinfo=timezone.utc),
         )
         self._data_blocks = {
@@ -128,6 +128,13 @@ class SqwBuilder:
         block_descriptors: dict[DataBlockName, SqwDataBlockDescriptor],
         bat_offset: int,
     ) -> tuple[memoryview, dict[DataBlockName, SqwDataBlockDescriptor]]:
+        # This function first writes the block allocation table (BAT) with placeholder
+        # values in order to determine the size of the BAT.
+        # Then, it computes the actual positions that data blocks will have in the file
+        # and inserts those positions into the serialized BAT.
+        # It returns a buffer of the BAT that can be inserted right after the file
+        # header and an updated in-memory representation of the BAT.
+
         buffer = BytesIO()
         sqw_io = LowLevelSqw(buffer, path=self._stored_path, byteorder=self._byteorder)
         sqw_io.write_u32(0)  # Size of BAT in bytes, filled in below.

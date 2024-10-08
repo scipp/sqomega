@@ -64,3 +64,17 @@ class SqwMainHeader(ir.Serializable):
 
     def prepare_for_serialization(self) -> SqwMainHeader:
         return replace(self, creation_date=datetime.now(tz=timezone.utc))
+
+
+@dataclass(kw_only=True, slots=True)
+class SqwPixWrap(ir.Serializable):
+    """Represents pixel data but does not hold the actual data."""
+
+    n_rows: int = 9
+    n_pixels: int
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "n_rows": ir.U32(self.n_rows),
+            "n_pixels": ir.U64(self.n_pixels),
+        }
