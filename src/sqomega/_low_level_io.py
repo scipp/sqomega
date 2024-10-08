@@ -17,7 +17,7 @@ from ._bytes import Byteorder
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
-_T = TypeVar("_T")
+_E = TypeVar("_E", bound=np.generic, covariant=True)
 
 
 def _annotate_read_exception(
@@ -137,8 +137,8 @@ class LowLevelSqw:
 
     @_annotate_read_exception("array")
     def read_array(
-        self, shape: tuple[int, ...], dtype: np.dtype[_T]
-    ) -> npt.NDArray[np.dtype[_T]]:
+        self, shape: tuple[int, ...], dtype: np.dtype[_E]
+    ) -> npt.NDArray[_E]:
         # TODO byteorder
         count = int(np.prod(shape))
         if isinstance(self._file, BytesIO):

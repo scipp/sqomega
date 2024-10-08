@@ -14,12 +14,9 @@ from ._low_level_io import LowLevelSqw
 
 _Shape = tuple[int, ...]
 _T = TypeVar("_T")
-_ObjectReader = Callable[
-    [LowLevelSqw, _Shape], list[ir.Object] | list[ir.ObjectArray] | npt.NDArray[Any]
-]
-_ObjectWriter = Callable[
-    [LowLevelSqw, list[ir.Object] | list[ir.ObjectArray] | npt.NDArray[Any]], None
-]
+_AnyObjectList = list[ir.Object] | list[ir.ObjectArray] | npt.NDArray[Any]
+_ObjectReader = Callable[[LowLevelSqw, _Shape], _AnyObjectList]
+_ObjectWriter = Callable[[LowLevelSqw, _AnyObjectList], None]
 
 
 class _IORegistry(Generic[_T]):
@@ -63,8 +60,8 @@ def read_object_array(sqw_io: LowLevelSqw) -> ir.ObjectArray | ir.CellArray:
     reader = _READERS.get(ty, position)
     data = reader(sqw_io, shape)
     if ty == ir.TypeTag.cell:
-        return ir.CellArray(shape=shape, data=data)
-    return ir.ObjectArray(ty=ty, shape=shape, data=data)
+        return ir.CellArray(shape=shape, data=data)  # type: ignore[arg-type]
+    return ir.ObjectArray(ty=ty, shape=shape, data=data)  # type: ignore[arg-type]
 
 
 def write_object_array(
@@ -81,7 +78,7 @@ def write_object_array(
 
 
 @_READERS.add(ir.TypeTag.char)
-def _read_char_arrays(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.String]:
+def _read_char_arrays(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Object]:
     # TODO is the str length shape[0] or shape[-1]?
     if not shape:
         return [ir.String("")]
@@ -89,7 +86,7 @@ def _read_char_arrays(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.String]:
 
 
 @_WRITERS.add(ir.TypeTag.char)
-def _write_char_array(sqw_io: LowLevelSqw, objects: list[ir.Object]) -> None:
+def _write_char_array(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
     for obj in objects:
         chars: ir.String = obj  # type: ignore[assignment]
         sqw_io.write_chars(chars.value)
@@ -101,13 +98,14 @@ def _read_cell(sqw_io: LowLevelSqw, shape: _Shape) -> Any:
 
 
 @_WRITERS.add(ir.TypeTag.cell)
-def _write_cell(sqw_io: LowLevelSqw, objects: list[ir.ObjectArray]) -> None:
-    for obj in objects:
+def _write_cell(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
+    obj_arrays: list[ir.ObjectArray] = objects  # type: ignore[assignment]
+    for obj in obj_arrays:
         write_object_array(sqw_io, obj)
 
 
 @_READERS.add(ir.TypeTag.struct)
-def _read_struct(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Struct]:
+def _read_struct(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Object]:
     return [_read_single_struct(sqw_io) for _ in range(_volume(shape))]
 
 
@@ -115,12 +113,12 @@ def _read_single_struct(sqw_io: LowLevelSqw) -> ir.Struct:
     n_fields = sqw_io.read_u32()
     field_name_sizes = [sqw_io.read_u32() for _ in range(n_fields)]
     field_names = tuple(sqw_io.read_n_chars(size) for size in field_name_sizes)
-    field_values = _expect_ty(ir.TypeTag.cell, read_object_array(sqw_io))
+    field_values: ir.CellArray = _expect_ty(ir.TypeTag.cell, read_object_array(sqw_io))  # type: ignore[assignment]
     return ir.Struct(field_names=field_names, field_values=field_values)
 
 
 @_WRITERS.add(ir.TypeTag.struct)
-def _write_struct(sqw_io: LowLevelSqw, objects: list[ir.Object]) -> None:
+def _write_struct(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
     for obj in objects:
         struct: ir.Struct = obj  # type: ignore[assignment]
         _write_single_struct(sqw_io, struct)
@@ -138,7 +136,7 @@ def _write_single_struct(sqw_io: LowLevelSqw, struct: ir.Struct) -> None:
 @_READERS.add(ir.TypeTag.f64)
 def _read_f64(
     sqw_io: LowLevelSqw, shape: _Shape
-) -> list[ir.F64] | npt.NDArray[np.float64]:
+) -> list[ir.Object] | npt.NDArray[np.float64]:
     data = sqw_io.read_array(shape, np.dtype('float64'))
     if data.size == 1:
         return [ir.F64(data.squeeze().item())]
@@ -146,9 +144,7 @@ def _read_f64(
 
 
 @_WRITERS.add(ir.TypeTag.f64)
-def _write_f64(
-    sqw_io: LowLevelSqw, objects: list[ir.Object] | npt.NDArray[np.float64]
-) -> None:
+def _write_f64(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
     if isinstance(objects, np.ndarray):
         sqw_io.write_array(objects)
     else:
@@ -158,12 +154,12 @@ def _write_f64(
 
 
 @_READERS.add(ir.TypeTag.logical)
-def _read_logical(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Logical]:
+def _read_logical(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Object]:
     return [ir.Logical(sqw_io.read_logical()) for _ in range(_volume(shape))]
 
 
 @_WRITERS.add(ir.TypeTag.logical)
-def _write_logical(sqw_io: LowLevelSqw, objects: list[ir.Object]) -> None:
+def _write_logical(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
     for obj in objects:
         logical: ir.Logical = obj  # type: ignore[assignment]
         sqw_io.write_logical(logical.value)
@@ -179,4 +175,4 @@ def _expect_ty(ty: ir.TypeTag, obj: _O) -> _O:
 
 
 def _volume(shape: _Shape) -> int:
-    return np.prod(shape).astype(int)
+    return int(np.prod(shape))

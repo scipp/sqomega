@@ -146,11 +146,10 @@ def _read_data_block_descriptor(sqw_io: LowLevelSqw) -> SqwDataBlockDescriptor:
 class AbortParse(Exception): ...
 
 
-def _parse_block(block: ir.ObjectArray) -> Any:
-    from rich import print
-
-    print(block)
+def _parse_block(block: ir.ObjectArray | ir.CellArray) -> Any:
     try:
+        if isinstance(block, ir.CellArray):
+            raise AbortParse("Block is a cell array, not a struct")
         return _try_parse_block(block)
     except AbortParse as abort:
         warnings.warn(
@@ -164,7 +163,7 @@ def _try_parse_block(block: ir.ObjectArray) -> Any:
         raise AbortParse(f"Unsupported block shape: {block.shape}")
     if block.ty != ir.TypeTag.struct:
         raise AbortParse(f"Unsupported block type: {block.shape}, expected struct")
-    struct: ir.Struct = block.data[0]
+    struct: ir.Struct = block.data[0]  # type: ignore[assignment]
     if sum(s != 1 for s in struct.field_values.shape) != 1:
         raise AbortParse(
             "Contents cannot be a multi-dimensional cell array, "
@@ -179,7 +178,7 @@ def _try_parse_block(block: ir.ObjectArray) -> Any:
     return parser(struct)
 
 
-def _get_struct_type_id(struct) -> tuple[str, float] | None:
+def _get_struct_type_id(struct: ir.Struct) -> tuple[str, float]:
     name = _get_struct_field(struct, 'serial_name')
     if len(name.shape) != 1:
         raise AbortParse("'serial_name' is multi-dimensional")
@@ -187,7 +186,14 @@ def _get_struct_type_id(struct) -> tuple[str, float] | None:
     if version.shape != (1,):
         raise AbortParse("'version' is multi-dimensional")
 
-    return name.data[0].value, version.data[0].value
+    n = name.data[0]
+    v = version.data[0]
+    if not isinstance(n, ir.String):
+        raise AbortParse("'serial_name' is not a string")
+    if not isinstance(v, ir.F64):
+        raise AbortParse("'version' is not an f64")
+
+    return n.value, v.value
 
 
 def _get_struct_field(struct: ir.Struct, name: str) -> ir.ObjectArray:
@@ -204,6 +210,8 @@ def _get_scalar_struct_field(struct: ir.Struct, name: str) -> Any:
     shape = field.shape[1:] if field.ty == ir.TypeTag.char else field.shape
     if shape not in ((1,), ()):
         raise AbortParse(f"Field '{name}' has non-scalar shape: {shape}")
+    if isinstance(field.data[0], ir.Struct):
+        raise AbortParse(f"Field '{name}' contains a nested struct")
     return field.data[0].value
 
 
