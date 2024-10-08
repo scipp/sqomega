@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sqomega import SQW, Byteorder, SqwFileHeader, SqwFileType, SqwMainHeader
+from sqomega import Byteorder, Sqw, SqwFileHeader, SqwFileType, SqwMainHeader
 
 # TODO actual files in filesystem
 
@@ -20,7 +20,7 @@ def test_detects_byteorder_little_endian() -> None:
         b'\x01\x00\x00\x00'
         b'\x04\x00\x00\x00'
     )
-    with SQW.open(buf) as sqw:
+    with Sqw.open(buf) as sqw:
         assert sqw.byteorder == Byteorder.little
 
 
@@ -32,7 +32,7 @@ def test_detects_byteorder_big_endian() -> None:
         b'\x00\x00\x00\x01'
         b'\x00\x00\x00\x04'
     )
-    with SQW.open(buf) as sqw:
+    with Sqw.open(buf) as sqw:
         assert sqw.byteorder == Byteorder.big
 
 
@@ -50,7 +50,7 @@ def test_open_file_header_little_endian() -> None:
         sqw_type=SqwFileType.SQW,
         n_dims=4,
     )
-    with SQW.open(buf) as sqw:
+    with Sqw.open(buf) as sqw:
         assert sqw.file_header == expected
 
 
@@ -68,7 +68,7 @@ def test_open_file_header_big_endian() -> None:
         sqw_type=SqwFileType.SQW,
         n_dims=4,
     )
-    with SQW.open(buf) as sqw:
+    with Sqw.open(buf) as sqw:
         assert sqw.file_header == expected
 
 
@@ -87,7 +87,7 @@ def test_open_flags_wrong_prog_name() -> None:
         n_dims=4,
     )
     with pytest.warns(UserWarning, match="SQW program not supported"):
-        with SQW.open(buf) as sqw:
+        with Sqw.open(buf) as sqw:
             assert sqw.file_header == expected
 
 
@@ -106,7 +106,7 @@ def test_open_flags_wrong_prog_version() -> None:
         n_dims=4,
     )
     with pytest.warns(UserWarning, match="SQW program not supported"):
-        with SQW.open(buf) as sqw:
+        with Sqw.open(buf) as sqw:
             assert sqw.file_header == expected
 
 
@@ -117,7 +117,7 @@ def intact_v4_sqw() -> Path:
 
 
 def test_read_main_header(intact_v4_sqw: Path) -> None:
-    with SQW.open(intact_v4_sqw) as sqw:
+    with Sqw.open(intact_v4_sqw) as sqw:
         main_header = sqw.read_data_block(('', 'main_header'))
     assert main_header.version == 2.0
     assert (

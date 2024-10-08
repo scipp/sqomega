@@ -26,7 +26,7 @@ from ._models import (
 from ._read_write import read_objects
 
 
-class SQW:
+class Sqw:
     def __init__(
         self,
         *,
@@ -45,16 +45,18 @@ class SQW:
         path: str | PathLike[str] | BinaryIO | BytesIO,
         *,
         byteorder: Byteorder | Literal["little", "big"] | None = None,
-    ) -> Generator[SQW, None, None]:
+    ) -> Generator[Sqw, None, None]:
         with open_binary(path, 'rb') as f:
             stored_path = None if isinstance(path, BinaryIO | BytesIO) else Path(path)
             sqw_io = LowLevelSqw(
-                f, path=stored_path, byteorder=Byteorder.parse(byteorder)
+                f,
+                path=stored_path,
+                byteorder=Byteorder.parse(byteorder) if byteorder is not None else None,
             )
             file_header = _read_file_header(sqw_io)
             _descriptors_size = sqw_io.read_u32()  # don't need this
             data_block_descriptors = _read_data_block_descriptors(sqw_io)
-            yield SQW(
+            yield Sqw(
                 sqw_io=sqw_io,
                 file_header=file_header,
                 block_allocation_table=data_block_descriptors,

@@ -45,6 +45,36 @@ def _add_note_to_read_exception(exc: Exception, sqw_io: LowLevelSqw, ty: str) ->
     )
 
 
+def _annotate_write_exception(
+    ty: str,
+) -> Callable[[Callable[_P, _R]], Callable[_P, _R]]:
+    """Add a note with file-information to exceptions from write_* functions."""
+
+    def decorator(func: Callable[_P, _R]) -> Callable[_P, _R]:
+        @functools.wraps(func)
+        def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+            try:
+                return func(*args, **kwargs)
+            except (ValueError, UnicodeEncodeError, OverflowError) as exc:
+                sqw_io: LowLevelSqw = args[0]  # type: ignore[assignment]
+                _add_note_to_read_exception(exc, sqw_io, ty)
+                raise
+
+        return wrapper
+
+    return decorator
+
+
+def _add_note_to_write_exception(exc: Exception, sqw_io: LowLevelSqw, ty: str) -> None:
+    path_piece = (
+        "in-memory SQW file" if sqw_io.path is None else f"SQW file '{sqw_io.path}'"
+    )
+    _add_note(
+        exc,
+        f"When writing a {ty} to {path_piece} at position {sqw_io.position}",
+    )
+
+
 def _add_note(exc: Exception, note: str) -> None:
     try:
         exc.add_note(note)  # type: ignore[attr-defined]
@@ -99,6 +129,42 @@ class LowLevelSqw:
     @_annotate_read_exception("n chars")
     def read_n_chars(self, n: int) -> str:
         return self._file.read(n).decode('utf-8')
+
+    @_annotate_write_exception("logical")
+    def write_logical(self, value: bool) -> None:
+        self._file.write(value.to_bytes(1, self._byteorder.get()))
+
+    @_annotate_write_exception("u8")
+    def write_u8(self, value: int) -> None:
+        self._file.write(value.to_bytes(1, self._byteorder.get()))
+
+    @_annotate_write_exception("u32")
+    def write_u32(self, value: int) -> None:
+        self._file.write(value.to_bytes(4, self._byteorder.get()))
+
+    @_annotate_write_exception("u64")
+    def write_u64(self, value: int) -> None:
+        self._file.write(value.to_bytes(8, self._byteorder.get()))
+
+    @_annotate_write_exception("f64")
+    def write_f64(self, value: float) -> None:
+        match self._byteorder:
+            case Byteorder.little:
+                bo = "<"
+            case Byteorder.big:
+                bo = ">"
+        self._file.write(struct.pack(bo + "d", value))
+
+    @_annotate_write_exception("char array")
+    def write_char_array(self, value: str) -> None:
+        encoded = value.encode('utf-8')
+        self.write_u32(len(encoded))
+        self._file.write(encoded)
+
+    @_annotate_write_exception("n chars")
+    def write_chars(self, value: str) -> None:
+        encoded = value.encode('utf-8')
+        self._file.write(encoded)
 
     def seek(self, pos: int) -> None:
         self._file.seek(pos)

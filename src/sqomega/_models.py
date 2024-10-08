@@ -2,9 +2,11 @@
 # Copyright (c) 2024 Scipp contributors (https://github.com/scipp)
 
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
+
+from . import _ir as ir
 
 
 class SqwFileType(enum.Enum):
@@ -36,11 +38,22 @@ class SqwDataBlockDescriptor:
 
 
 @dataclass(kw_only=True, slots=True)
-class SqwMainHeader:
+class SqwMainHeader(ir.Serializable):
     full_filename: str
     title: str
-    nfiles: int  # f64
-    creation_date: datetime  # char_array
+    nfiles: int
+    creation_date: datetime
 
     serial_name: ClassVar[str] = "main_header_cl"
     version: ClassVar[float] = 2.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "full_filename": ir.String(self.full_filename),
+            "title": ir.String(self.title),
+            "nfiles": ir.F64(self.nfiles),
+            "creation_date": ir.Datetime(self.creation_date),
+            "creation_date_defined_privately": ir.Logical(False),
+        }
