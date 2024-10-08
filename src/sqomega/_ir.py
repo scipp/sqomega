@@ -117,10 +117,7 @@ class Serializable(ABC):
             field_names=tuple(fields),
             field_values=CellArray(
                 shape=(len(fields), 1),  # HORACE uses a 2D array
-                data=[
-                    ObjectArray(ty=field.ty, **_serialize_field(field))
-                    for field in fields.values()
-                ],
+                data=[_serialize_field(field) for field in fields.values()],
             ),
         )
 
@@ -128,9 +125,9 @@ class Serializable(ABC):
         return self
 
 
-def _serialize_field(field: Object) -> dict[str, tuple[int, ...] | Object]:
+def _serialize_field(field: Object) -> ObjectArray:
     if isinstance(field, Datetime):
         field = String(value=field.value.isoformat(timespec='seconds'))
     if isinstance(field, String):
-        return {'shape': (len(field.value),), 'data': [field]}
-    return {'shape': (1,), 'data': [field]}
+        return ObjectArray(ty=field.ty, shape=(len(field.value),), data=[field])
+    return ObjectArray(ty=field.ty, shape=(1,), data=[field])

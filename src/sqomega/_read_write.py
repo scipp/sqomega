@@ -84,7 +84,7 @@ def _read_char_arrays(sqw_io: LowLevelSqw, n_dims: int) -> str:
 
 
 def _write_char_array(sqw_io: LowLevelSqw, value: ir.Object) -> None:
-    chars: ir.String = value
+    chars: ir.String = value  # type: ignore[assignment]
     sqw_io.write_chars(chars.value)
 
 
@@ -132,7 +132,7 @@ def _struct_serial_name(field_names: list[str], field_values: list[Any]) -> str:
 
 
 def _write_struct(sqw_io: LowLevelSqw, obj: ir.Object) -> None:
-    struct: ir.Struct = obj
+    struct: ir.Struct = obj  # type: ignore[assignment]
     sqw_io.write_u32(len(struct.field_names))
     for name in struct.field_names:
         sqw_io.write_u32(len(name))
@@ -142,12 +142,12 @@ def _write_struct(sqw_io: LowLevelSqw, obj: ir.Object) -> None:
 
 
 def _write_f64(sqw_io: LowLevelSqw, value: ir.Object) -> None:
-    f64: ir.F64 = value
+    f64: ir.F64 = value  # type: ignore[assignment]
     sqw_io.write_f64(f64.value)
 
 
 def _write_logical(sqw_io: LowLevelSqw, value: ir.Object) -> None:
-    logical: ir.Logical = value
+    logical: ir.Logical = value  # type: ignore[assignment]
     sqw_io.write_logical(logical.value)
 
 

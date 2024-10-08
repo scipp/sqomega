@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from io import BytesIO
@@ -55,7 +56,7 @@ class SqwBuilder:
         }
 
     @contextmanager
-    def create(self) -> Sqw:
+    def create(self) -> Generator[Sqw, None, None]:
         from ._sqw import Sqw
 
         with open_binary(self._path, "wb") as f:

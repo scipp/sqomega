@@ -13,9 +13,7 @@ class Byteorder(enum.Enum):
     big = "big"
 
     @classmethod
-    def parse(
-        cls, value: Byteorder | Literal["native", "little", "big"]
-    ) -> Byteorder | None:
+    def parse(cls, value: Byteorder | Literal["native", "little", "big"]) -> Byteorder:
         if isinstance(value, Byteorder):
             return value
         if isinstance(value, str):
