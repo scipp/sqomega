@@ -13,6 +13,8 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, BinaryIO
 
+import numpy as np
+
 from ._bytes import Byteorder
 from ._files import open_binary
 from ._low_level_io import LowLevelSqw
@@ -23,11 +25,26 @@ from ._models import (
     SqwFileHeader,
     SqwFileType,
     SqwMainHeader,
+    SqwPixelMetadata,
 )
 from ._read_write import write_object_array
 
 if TYPE_CHECKING:
     from ._sqw import Sqw
+
+# Based on
+# https://github.com/pace-neutrons/Horace/blob/master/documentation/add/05_file_formats.md
+_DEFAULT_PIX_ROWS = (
+    'u1',  # Coordinate 1 (h)
+    'u2',  # Coordinate 2 (k)
+    'u3',  # Coordinate 3 (l)
+    'u4',  # Coordinate 1 (E)
+    'irun',  # Run index in header block
+    'idet',  # Detector group number
+    'ien',  # Energy bin number
+    'signal',  # Signal
+    'error',  # Variance
+)
 
 
 class SqwBuilder:
@@ -43,17 +60,20 @@ class SqwBuilder:
             None if isinstance(self._path, BinaryIO | BytesIO) else Path(self._path)
         )
         self._byteorder = byteorder
+        self._n_dim = 0
 
         main_header = SqwMainHeader(
-            full_filename=os.fspath(self._stored_path or ''),
+            full_filename=self._full_filename,
             title=title,
             nfiles=0,
             # To be replaced when writing the file.
             creation_date=datetime(1, 1, 1, tzinfo=timezone.utc),
         )
-        self._data_blocks = {
+        self._data_blocks: dict[DataBlockName, Any] = {  # TODO type
             ('', 'main_header'): main_header,
         }
+
+        self._pix_placeholder: _PixPlaceholder | None = None
 
     @contextmanager
     def create(self) -> Generator[Sqw, None, None]:
@@ -82,12 +102,29 @@ class SqwBuilder:
 
             yield Sqw(sqw_io=sqw_io, file_header=file_header, block_allocation_table={})
 
+    def register_pixel_data(
+        self, *, n_pixels: int, n_dims: int, rows: tuple[str, ...] = _DEFAULT_PIX_ROWS
+    ) -> SqwBuilder:
+        if self._pix_placeholder is not None:
+            raise RuntimeError("SQW builder already has pixel data")
+        self._n_dim = n_dims
+        self._data_blocks[('pix', 'metadata')] = SqwPixelMetadata(
+            full_filename=self._full_filename,
+            npix=n_pixels,
+            data_range=np.c_[np.full(len(rows), np.inf), np.full(len(rows), -np.inf)],
+        )
+        self._pix_placeholder = _PixPlaceholder(
+            n_pixels=n_pixels,
+            rows=rows,
+        )
+        return self
+
     def _make_file_header(self) -> SqwFileHeader:
         return SqwFileHeader(
             prog_name="horace",
             prog_version=4.0,
             sqw_type=SqwFileType.SQW,
-            n_dims=1,  # TODO
+            n_dims=self._n_dim,
         )
 
     def _serialize_data_blocks(
@@ -103,6 +140,12 @@ class SqwBuilder:
             sqw_io = LowLevelSqw(
                 buffer, path=self._stored_path, byteorder=self._byteorder
             )
+            # TODO for placeholders, serialize header (e.g., npix, nrows) and get total
+            #  size.
+            #  Return custom type, either
+            #   - wrapper around memoryview
+            #   - wrapper around memoryview of header + size of array
+            #  Caller: writer memoryviews to file and reserve extra space
             write_object_array(sqw_io, data_block.serialize_to_ir().to_object_array())
 
             buffer.seek(0)
@@ -162,6 +205,10 @@ class SqwBuilder:
         sqw_io.write_u32(bat_size)
         return buffer.getbuffer(), amended_descriptors
 
+    @property
+    def _full_filename(self) -> str:
+        return os.fspath(self._stored_path or '')
+
 
 def _write_file_header(sqw_io: LowLevelSqw, file_header: SqwFileHeader) -> None:
     sqw_io.write_char_array(file_header.prog_name)
@@ -181,3 +228,13 @@ def _write_data_block_descriptor(
     sqw_io.write_u32(descriptor.size)
     sqw_io.write_u32(int(descriptor.locked))
     return pos
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class _PixPlaceholder:
+    n_pixels: int
+    rows: tuple[str, ...]
+
+    def pix_array_size(self) -> int:
+        # *4 for f32
+        return self.n_pixels * len(self.rows) * 4

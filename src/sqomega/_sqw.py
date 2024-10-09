@@ -27,7 +27,7 @@ from ._models import (
     SqwFileHeader,
     SqwFileType,
     SqwMainHeader,
-    SqwPixMetadata,
+    SqwPixelMetadata,
 )
 from ._read_write import read_object_array
 
@@ -225,11 +225,11 @@ def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
     )
 
 
-def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixMetadata:
+def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixelMetadata:
     data_range = _get_struct_field(struct, 'data_range').data
     if not isinstance(data_range, np.ndarray):
         raise AbortParse("'data_range' is not a numpy array")
-    return SqwPixMetadata(
+    return SqwPixelMetadata(
         full_filename=_get_scalar_struct_field(struct, 'full_filename'),
         npix=int(_get_scalar_struct_field(struct, 'npix')),
         data_range=data_range,
@@ -238,7 +238,7 @@ def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixMetadata:
 
 _BLOCK_PARSERS = {
     (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
-    (SqwPixMetadata.serial_name, SqwPixMetadata.version): _parse_pix_metadata_1_0,
+    (SqwPixelMetadata.serial_name, SqwPixelMetadata.version): _parse_pix_metadata_1_0,
 }
 
 

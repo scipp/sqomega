@@ -56,7 +56,7 @@ def test_create_writes_file_header_little_endian() -> None:
         b'horace'
         b'\x00\x00\x00\x00\x00\x00\x10\x40'
         b'\x01\x00\x00\x00'
-        b'\x01\x00\x00\x00'
+        b'\x00\x00\x00\x00'
     )
     assert buffer.read(len(expected)) == expected
 
@@ -73,7 +73,7 @@ def test_create_writes_file_header_big_endian() -> None:
         b'horace'
         b'\x40\x10\x00\x00\x00\x00\x00\x00'
         b'\x00\x00\x00\x01'
-        b'\x00\x00\x00\x01'
+        b'\x00\x00\x00\x00'
     )
     assert buffer.read(len(expected)) == expected
 
@@ -96,3 +96,21 @@ def test_create_writes_main_header(
     assert (main_header.creation_date - datetime.now(tz=timezone.utc)) < timedelta(
         seconds=1
     )
+
+
+@pytest.mark.parametrize('byteorder', ['native', 'little', 'big'])
+def test_register_pixel_data_writes_pix_metadata(
+    byteorder: Literal['native', 'little', 'big'],
+) -> None:
+    buffer = BytesIO()
+    builder = Sqw.build(buffer, byteorder=byteorder)
+    builder = builder.register_pixel_data(n_pixels=13, n_dims=3)
+    with builder.create():
+        pass
+    buffer.seek(0)
+
+    with Sqw.open(buffer) as sqw:
+        pix_metadata = sqw.read_data_block(('pix', 'metadata'))
+    assert pix_metadata.full_filename == ''  # because we use a buffer
+    assert pix_metadata.npix == 13
+    assert pix_metadata.data_range.shape == (9, 2)

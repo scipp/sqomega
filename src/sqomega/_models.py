@@ -69,7 +69,7 @@ class SqwMainHeader(ir.Serializable):
 
 
 @dataclass(kw_only=True, slots=True)
-class SqwPixMetadata(ir.Serializable):
+class SqwPixelMetadata(ir.Serializable):
     full_filename: str
     npix: int
     data_range: np.ndarray[tuple[int, int], np.dtype[np.float64]]
