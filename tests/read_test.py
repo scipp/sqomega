@@ -116,6 +116,18 @@ def intact_v4_sqw() -> Path:
     return Path(__file__).resolve().parent.parent / 'data' / 'fe_demo.sqw'
 
 
+def test_read_data_block_raises_when_given_tuple_and_str(intact_v4_sqw: Path) -> None:
+    with Sqw.open(intact_v4_sqw) as sqw:
+        with pytest.raises(TypeError):
+            sqw.read_data_block(('', 'main_header'), 'extra')
+
+
+def test_read_data_block_raises_when_given_only_one_str(intact_v4_sqw: Path) -> None:
+    with Sqw.open(intact_v4_sqw) as sqw:
+        with pytest.raises(TypeError):
+            sqw.read_data_block('main_header')
+
+
 def test_read_main_header(intact_v4_sqw: Path) -> None:
     with Sqw.open(intact_v4_sqw) as sqw:
         main_header = sqw.read_data_block(('', 'main_header'))

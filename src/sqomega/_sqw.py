@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from io import BytesIO
 from os import PathLike
@@ -86,11 +86,18 @@ class Sqw:
     def byteorder(self) -> Byteorder:
         return self._sqw_io.byteorder
 
-    def read_data_block(self, name: DataBlockName) -> Any:  # TODO type
+    def data_block_names(self) -> Iterable[DataBlockName]:
+        """Return an iterator over the names of all stored data blocks."""
+        return self._block_allocation_table.keys()
+
+    def read_data_block(
+        self, name: DataBlockName | str, level2_name: str | None = None, /
+    ) -> Any:  # TODO type
+        block_name = _normalize_data_block_name(name, level2_name)
         try:
-            block_descriptor = self._block_allocation_table[name]
+            block_descriptor = self._block_allocation_table[block_name]
         except KeyError:
-            raise KeyError(f"No data block {name!r} in file") from None
+            raise KeyError(f"No data block {block_name!r} in file") from None
 
         self._sqw_io.seek(block_descriptor.position)
         match block_descriptor.block_type:
@@ -141,6 +148,20 @@ def _read_data_block_descriptor(sqw_io: LowLevelSqw) -> SqwDataBlockDescriptor:
     locked = sqw_io.read_u32() == 1
     return SqwDataBlockDescriptor(
         block_type=block_type, name=name, position=position, size=size, locked=locked
+    )
+
+
+def _normalize_data_block_name(
+    name: DataBlockName | str, level2_name: str | None
+) -> DataBlockName:
+    match (name, level2_name):
+        case (_, _) as n, None:
+            return n
+        case str(n1), str(n2):
+            return DataBlockName((n1, n2))
+    raise TypeError(
+        "Data block name must be given either as a tuple of two strings or two"
+        f"separate strings. Got {name!r} and {level2_name!r}."
     )
 
 
