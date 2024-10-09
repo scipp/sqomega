@@ -139,14 +139,15 @@ class SqwBuilder:
         sqw_io = LowLevelSqw(buffer, path=self._stored_path, byteorder=self._byteorder)
         sqw_io.write_u32(0)  # Size of BAT in bytes, filled in below.
         sqw_io.write_u32(len(block_descriptors))
+        bat_begin = sqw_io.position
         # Offsets are relative to the local sqw_io.
         position_offsets = {
             name: _write_data_block_descriptor(sqw_io, descriptor)
             for name, descriptor in block_descriptors.items()
         }
-        bat_size = sqw_io.position
+        bat_size = sqw_io.position - bat_begin
 
-        block_position = bat_offset + bat_size
+        block_position = bat_offset + sqw_io.position
         amended_descriptors = {}
         for name, descriptor in block_descriptors.items():
             amended_descriptors[name] = dataclasses.replace(
@@ -158,7 +159,7 @@ class SqwBuilder:
             block_position += descriptor.size
 
         sqw_io.seek(0)
-        sqw_io.write_u32(block_position)  # BAT size in bytes.
+        sqw_io.write_u32(bat_size)
         return buffer.getbuffer(), amended_descriptors
 
 
