@@ -99,6 +99,14 @@ class Logical:
     ty: ClassVar[TypeTag] = TypeTag.logical
 
 
+# Not a dedicated type in SQW. Used here to encode NumPy arrays where list[ir.Object]
+# is not efficient enough.
+@dataclass()
+class Array:
+    value: npt.NDArray[Any]
+    ty: TypeTag
+
+
 # Not supported by SQW but represented here to simplify serialization.
 @dataclass()
 class Datetime:
@@ -106,7 +114,7 @@ class Datetime:
     ty: ClassVar[TypeTag] = TypeTag.char
 
 
-Object = Struct | String | F64 | U64 | U32 | U8 | Logical | Datetime
+Object = Struct | String | F64 | U64 | U32 | U8 | Logical | Array | Datetime
 
 
 class Serializable(ABC):
@@ -132,4 +140,6 @@ def _serialize_field(field: Object) -> ObjectArray:
         field = String(value=field.value.isoformat(timespec='seconds'))
     if isinstance(field, String):
         return ObjectArray(ty=field.ty, shape=(len(field.value),), data=[field])
+    if isinstance(field, Array):
+        return ObjectArray(ty=field.ty, shape=field.value.shape[::-1], data=field.value)
     return ObjectArray(ty=field.ty, shape=(1,), data=[field])

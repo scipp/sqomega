@@ -8,6 +8,8 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import ClassVar
 
+import numpy as np
+
 from . import _ir as ir
 
 DataBlockName = tuple[str, str]
@@ -64,6 +66,25 @@ class SqwMainHeader(ir.Serializable):
 
     def prepare_for_serialization(self) -> SqwMainHeader:
         return replace(self, creation_date=datetime.now(tz=timezone.utc))
+
+
+@dataclass(kw_only=True, slots=True)
+class SqwPixMetadata(ir.Serializable):
+    full_filename: str
+    npix: int
+    data_range: np.ndarray[tuple[int, int], np.dtype[np.float64]]
+
+    serial_name: ClassVar[str] = "pix_metadata"
+    version: ClassVar[float] = 1.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "full_filename": ir.String(self.full_filename),
+            "npix": ir.F64(self.npix),
+            "data_range": ir.Array(self.data_range, ty=ir.TypeTag.f64),
+        }
 
 
 @dataclass(kw_only=True, slots=True)
