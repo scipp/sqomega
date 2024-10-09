@@ -190,11 +190,13 @@ class LowLevelSqw:
     @_annotate_write_exception("array")
     def write_array(self, array: npt.NDArray[np.float64]) -> None:
         # TODO element order
-        (
-            array.astype(
-                array.dtype.newbyteorder(self.byteorder.value), copy=False
-            ).tofile(self._file)
-        )
+        array = array.astype(array.dtype.newbyteorder(self.byteorder.value), copy=False)
+        if isinstance(self._file, BytesIO):
+            # Inefficient because it constructs an entire separate buffer in memory.
+            # Could be optimised to write in chunks if need be.
+            self._file.write(array.tobytes())
+        else:
+            array.tofile(self._file)
 
     @_annotate_write_exception("bytes")
     def write_raw(self, value: bytes | memoryview) -> None:
