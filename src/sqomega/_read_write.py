@@ -168,7 +168,7 @@ def _write_single_struct(sqw_io: LowLevelSqw, struct: ir.Struct) -> None:
 def _read_f64(
     sqw_io: LowLevelSqw, shape: _Shape
 ) -> list[ir.Object] | npt.NDArray[np.float64]:
-    data = sqw_io.read_array(shape, np.dtype('float64'))
+    data = sqw_io.read_array(shape, np.dtype("float64"))
     if data.size == 1:
         return [ir.F64(data.squeeze().item())]
     return data

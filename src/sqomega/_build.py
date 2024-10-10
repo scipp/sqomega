@@ -35,15 +35,15 @@ if TYPE_CHECKING:
 # Based on
 # https://github.com/pace-neutrons/Horace/blob/master/documentation/add/05_file_formats.md
 _DEFAULT_PIX_ROWS = (
-    'u1',  # Coordinate 1 (h)
-    'u2',  # Coordinate 2 (k)
-    'u3',  # Coordinate 3 (l)
-    'u4',  # Coordinate 1 (E)
-    'irun',  # Run index in header block
-    'idet',  # Detector group number
-    'ien',  # Energy bin number
-    'signal',  # Signal
-    'error',  # Variance
+    "u1",  # Coordinate 1 (h)
+    "u2",  # Coordinate 2 (k)
+    "u3",  # Coordinate 3 (l)
+    "u4",  # Coordinate 1 (E)
+    "irun",  # Run index in header block
+    "idet",  # Detector group number
+    "ien",  # Energy bin number
+    "signal",  # Signal
+    "error",  # Variance
 )
 
 
@@ -70,7 +70,7 @@ class SqwBuilder:
             creation_date=datetime(1, 1, 1, tzinfo=timezone.utc),
         )
         self._data_blocks: dict[DataBlockName, Any] = {  # TODO type
-            ('', 'main_header'): main_header,
+            ("", "main_header"): main_header,
         }
 
         self._pix_placeholder: _PixPlaceholder | None = None
@@ -108,7 +108,7 @@ class SqwBuilder:
         if self._pix_placeholder is not None:
             raise RuntimeError("SQW builder already has pixel data")
         self._n_dim = n_dims
-        self._data_blocks[('pix', 'metadata')] = SqwPixelMetadata(
+        self._data_blocks[("pix", "metadata")] = SqwPixelMetadata(
             full_filename=self._full_filename,
             npix=n_pixels,
             data_range=np.c_[np.full(len(rows), np.inf), np.full(len(rows), -np.inf)],
@@ -207,7 +207,7 @@ class SqwBuilder:
 
     @property
     def _full_filename(self) -> str:
-        return os.fspath(self._stored_path or '')
+        return os.fspath(self._stored_path or "")
 
 
 def _write_file_header(sqw_io: LowLevelSqw, file_header: SqwFileHeader) -> None:

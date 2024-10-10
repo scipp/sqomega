@@ -11,10 +11,10 @@ import sqomega as pkg
 
 
 def test_has_version() -> None:
-    assert hasattr(pkg, '__version__')
+    assert hasattr(pkg, "__version__")
 
 
 # This is for CI package tests. They need to run tests with minimal dependencies,
 # that is, without installing pytest. This code does not affect pytest.
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_has_version()

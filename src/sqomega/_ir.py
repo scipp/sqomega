@@ -13,7 +13,7 @@ from typing import Any, ClassVar, TypeVar
 
 import numpy.typing as npt
 
-_T = TypeVar('_T')
+_T = TypeVar("_T")
 
 
 class TypeTag(enum.Enum):
@@ -137,7 +137,7 @@ class Serializable(ABC):
 
 def _serialize_field(field: Object) -> ObjectArray:
     if isinstance(field, Datetime):
-        field = String(value=field.value.isoformat(timespec='seconds'))
+        field = String(value=field.value.isoformat(timespec="seconds"))
     if isinstance(field, String):
         return ObjectArray(ty=field.ty, shape=(len(field.value),), data=[field])
     if isinstance(field, Array):

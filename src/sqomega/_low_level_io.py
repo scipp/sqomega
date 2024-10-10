@@ -99,7 +99,7 @@ class LowLevelSqw:
     @_annotate_read_exception("logical")
     def read_logical(self) -> bool:
         buf = self._file.read(1)
-        return buf != b'\x00'
+        return buf != b"\x00"
 
     @_annotate_read_exception("u8")
     def read_u8(self) -> int:
@@ -133,7 +133,7 @@ class LowLevelSqw:
 
     @_annotate_read_exception("n chars")
     def read_n_chars(self, n: int) -> str:
-        return self._file.read(n).decode('utf-8')
+        return self._file.read(n).decode("utf-8")
 
     @_annotate_read_exception("array")
     def read_array(
@@ -178,13 +178,13 @@ class LowLevelSqw:
 
     @_annotate_write_exception("char array")
     def write_char_array(self, value: str) -> None:
-        encoded = value.encode('utf-8')
+        encoded = value.encode("utf-8")
         self.write_u32(len(encoded))
         self._file.write(encoded)
 
     @_annotate_write_exception("char array")
     def write_chars(self, value: str) -> None:
-        encoded = value.encode('utf-8')
+        encoded = value.encode("utf-8")
         self._file.write(encoded)
 
     @_annotate_write_exception("array")
@@ -239,8 +239,8 @@ def _deduce_byteorder(
     buf = file.read(4)
     file.seek(pos)
 
-    le_size = int.from_bytes(buf, 'little')
-    be_size = int.from_bytes(buf, 'big')
+    le_size = int.from_bytes(buf, "little")
+    be_size = int.from_bytes(buf, "big")
     if le_size < be_size:
         return Byteorder.little
     return Byteorder.big

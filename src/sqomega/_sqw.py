@@ -55,7 +55,7 @@ class Sqw:
         *,
         byteorder: Byteorder | Literal["little", "big"] | None = None,
     ) -> Generator[Sqw, None, None]:
-        with open_binary(path, 'rb') as f:
+        with open_binary(path, "rb") as f:
             stored_path = None if isinstance(path, BinaryIO | BytesIO) else Path(path)
             sqw_io = LowLevelSqw(
                 f,
@@ -76,7 +76,7 @@ class Sqw:
         cls,
         path: str | PathLike[str] | BinaryIO | BytesIO,
         *,
-        title: str = '',
+        title: str = "",
         byteorder: Byteorder | Literal["native", "little", "big"] = "native",
     ) -> SqwBuilder:
         return SqwBuilder(path, title, byteorder=Byteorder.parse(byteorder))
@@ -205,10 +205,10 @@ def _try_parse_block(block: ir.ObjectArray) -> Any:
 
 
 def _get_struct_type_id(struct: ir.Struct) -> tuple[str, float]:
-    name = _get_struct_field(struct, 'serial_name')
+    name = _get_struct_field(struct, "serial_name")
     if len(name.shape) != 1:
         raise AbortParse("'serial_name' is multi-dimensional")
-    version = _get_struct_field(struct, 'version')
+    version = _get_struct_field(struct, "version")
     if version.shape != (1,):
         raise AbortParse("'version' is multi-dimensional")
 
@@ -243,20 +243,20 @@ def _get_scalar_struct_field(struct: ir.Struct, name: str) -> Any:
 
 def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
     return SqwMainHeader(
-        full_filename=_get_scalar_struct_field(struct, 'full_filename'),
-        title=_get_scalar_struct_field(struct, 'title'),
-        nfiles=int(_get_scalar_struct_field(struct, 'nfiles')),
-        creation_date=parse_datetime(_get_scalar_struct_field(struct, 'creation_date')),
+        full_filename=_get_scalar_struct_field(struct, "full_filename"),
+        title=_get_scalar_struct_field(struct, "title"),
+        nfiles=int(_get_scalar_struct_field(struct, "nfiles")),
+        creation_date=parse_datetime(_get_scalar_struct_field(struct, "creation_date")),
     )
 
 
 def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixelMetadata:
-    data_range = _get_struct_field(struct, 'data_range').data
+    data_range = _get_struct_field(struct, "data_range").data
     if not isinstance(data_range, np.ndarray):
         raise AbortParse("'data_range' is not a numpy array")
     return SqwPixelMetadata(
-        full_filename=_get_scalar_struct_field(struct, 'full_filename'),
-        npix=int(_get_scalar_struct_field(struct, 'npix')),
+        full_filename=_get_scalar_struct_field(struct, "full_filename"),
+        npix=int(_get_scalar_struct_field(struct, "npix")),
         data_range=data_range,
     )
 
@@ -264,7 +264,7 @@ def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixelMetadata:
 def _parse_ix_experiment_3_0(struct: ir.Struct) -> list[SqwIXExperiment]:
     return [
         _parse_single_ix_experiment_3_0(run)
-        for run in _get_struct_field(struct, 'array_dat').data
+        for run in _get_struct_field(struct, "array_dat").data
     ]
 
 
@@ -272,27 +272,27 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
     def g(n: str) -> Any:
         return _get_scalar_struct_field(struct, n)
 
-    candidate_efix = _get_struct_field(struct, 'efix').data
+    candidate_efix = _get_struct_field(struct, "efix").data
     if isinstance(candidate_efix, np.ndarray):
         efix = candidate_efix
     else:
         efix = np.array([e.value for e in candidate_efix])
 
     return SqwIXExperiment(
-        filename=g('filename'),
-        filepath=g('filepath'),
-        run_id=int(g('run_id')),
+        filename=g("filename"),
+        filepath=g("filepath"),
+        run_id=int(g("run_id")),
         efix=efix,
-        emode=EnergyMode(g('emode')),
-        en=_get_struct_field(struct, 'en').data,
-        psi=g('psi'),
-        u=sc.vector(_get_struct_field(struct, 'u').data),
-        v=sc.vector(_get_struct_field(struct, 'v').data),
-        omega=g('omega'),
-        dpsi=g('dpsi'),
-        gl=g('gl'),
-        gs=g('gs'),
-        angular_is_degree=g('angular_is_degree'),
+        emode=EnergyMode(g("emode")),
+        en=_get_struct_field(struct, "en").data,
+        psi=g("psi"),
+        u=sc.vector(_get_struct_field(struct, "u").data),
+        v=sc.vector(_get_struct_field(struct, "v").data),
+        omega=g("omega"),
+        dpsi=g("dpsi"),
+        gl=g("gl"),
+        gs=g("gs"),
+        angular_is_degree=g("angular_is_degree"),
     )
 
 
@@ -306,4 +306,4 @@ _BLOCK_PARSERS = {
 def _read_pix_block(sqw_io: LowLevelSqw) -> npt.NDArray[np.float32]:
     n_rows = sqw_io.read_u32()
     n_pixels = sqw_io.read_u64()
-    return sqw_io.read_array((n_rows, n_pixels), np.dtype('float32'))
+    return sqw_io.read_array((n_rows, n_pixels), np.dtype("float32"))
