@@ -63,8 +63,7 @@ class Sqw:
                 byteorder=Byteorder.parse(byteorder) if byteorder is not None else None,
             )
             file_header = _read_file_header(sqw_io)
-            _descriptors_size = sqw_io.read_u32()  # don't need this
-            data_block_descriptors = _read_data_block_descriptors(sqw_io)
+            data_block_descriptors = _read_block_allocation_table(sqw_io)
             yield Sqw(
                 sqw_io=sqw_io,
                 file_header=file_header,
@@ -136,9 +135,10 @@ def _read_file_header(sqw_io: LowLevelSqw) -> SqwFileHeader:
     )
 
 
-def _read_data_block_descriptors(
+def _read_block_allocation_table(
     sqw_io: LowLevelSqw,
 ) -> dict[DataBlockName, SqwDataBlockDescriptor]:
+    _bat_size = sqw_io.read_u32()  # don't need this
     n_blocks = sqw_io.read_u32()
     descriptors = (_read_data_block_descriptor(sqw_io) for _ in range(n_blocks))
     return {descriptor.name: descriptor for descriptor in descriptors}
@@ -279,6 +279,12 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
         (e,) = candidate_efix
         efix = sc.scalar(e.value, unit='meV')
 
+    raw_en = _get_struct_field(struct, "en").data
+    if isinstance(raw_en, np.ndarray):
+        en = raw_en.squeeze()
+    else:
+        en = [e.value for e in raw_en]
+
     angle_unit = sc.Unit('deg' if g("angular_is_degree") else "rad")
 
     return SqwIXExperiment(
@@ -287,11 +293,7 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
         run_id=int(g("run_id")),
         efix=efix,
         emode=EnergyMode(g("emode")),
-        en=sc.array(
-            dims=['energy_transfer'],
-            values=_get_struct_field(struct, "en").data.squeeze(),
-            unit='meV',
-        ),
+        en=sc.array(dims=['energy_transfer'], values=en, unit='meV'),
         psi=sc.scalar(g("psi"), unit=angle_unit),
         u=sc.vector(_get_struct_field(struct, "u").data),
         v=sc.vector(_get_struct_field(struct, "v").data),

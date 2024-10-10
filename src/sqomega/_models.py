@@ -132,17 +132,17 @@ class SqwIXExperiment(ir.Serializable):
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
         en = (
             self.en.to(unit='meV', dtype='float64', copy=False)
-            .broadcast(sizes={'_': 1, 'energy_transfer': -1})
+            .broadcast(sizes={'_': 1, 'energy_transfer': self.en.shape[0]})
             .values
         )
-        efix = self.efix.to(unit='meV', dtype='float64', copy=False).values
+        efix = self.efix.to(unit='meV', dtype='float64', copy=False)
+        if efix.ndim == 0:
+            efix = efix.broadcast(sizes={'_': 1})
         return {
-            "serial_name": ir.String(self.serial_name),
-            "version": ir.F64(self.version),
             "filename": ir.String(self.filename),
             "filepath": ir.String(self.filepath),
             "run_id": ir.F64(float(self.run_id)),
-            "efix": ir.Array(efix, ty=ir.TypeTag.f64),
+            "efix": ir.Array(efix.values, ty=ir.TypeTag.f64),
             "emode": ir.F64(float(self.emode.value)),
             "en": ir.Array(en, ty=ir.TypeTag.f64),
             "psi": ir.F64(_angle_value(self.psi)),
@@ -153,8 +153,28 @@ class SqwIXExperiment(ir.Serializable):
             "gl": ir.F64(_angle_value(self.gl)),
             "gs": ir.F64(_angle_value(self.gs)),
             "angular_is_degree": ir.Logical(False),
+            # serial_name and version are serialized by SqwMultiIXExperiment
         }
 
 
 def _angle_value(x: sc.Variable) -> float:
     return x.to(unit='rad', dtype='float64', copy=False).value
+
+
+@dataclass(slots=True)
+class SqwMultiIXExperiment(ir.Serializable):
+    array_dat: list[SqwIXExperiment]
+
+    serial_name: ClassVar[str] = "IX_experiment"
+    version: ClassVar[float] = 3.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "array_dat": ir.ObjectArray(
+                ty=ir.TypeTag.struct,
+                shape=(len(self.array_dat),),
+                data=[exp.serialize_to_ir() for exp in self.array_dat],
+            ),
+        }

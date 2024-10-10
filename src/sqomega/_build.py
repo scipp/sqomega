@@ -24,7 +24,9 @@ from ._models import (
     SqwDataBlockType,
     SqwFileHeader,
     SqwFileType,
+    SqwIXExperiment,
     SqwMainHeader,
+    SqwMultiIXExperiment,
     SqwPixelMetadata,
 )
 from ._read_write import write_object_array
@@ -74,6 +76,7 @@ class SqwBuilder:
         }
 
         self._pix_placeholder: _PixPlaceholder | None = None
+        self._expdata: list[SqwIXExperiment] = []
 
     @contextmanager
     def create(self) -> Generator[Sqw, None, None]:
@@ -103,11 +106,21 @@ class SqwBuilder:
             yield Sqw(sqw_io=sqw_io, file_header=file_header, block_allocation_table={})
 
     def register_pixel_data(
-        self, *, n_pixels: int, n_dims: int, rows: tuple[str, ...] = _DEFAULT_PIX_ROWS
+        self,
+        *,
+        n_pixels: int,
+        n_dims: int,
+        experiments: list[SqwIXExperiment],
+        rows: tuple[str, ...] = _DEFAULT_PIX_ROWS,
     ) -> SqwBuilder:
         if self._pix_placeholder is not None:
             raise RuntimeError("SQW builder already has pixel data")
         self._n_dim = n_dims
+
+        self._expdata = experiments
+        self._data_blocks[('experiment_info', 'expdata')] = SqwMultiIXExperiment(
+            self._expdata
+        )
         self._data_blocks[("pix", "metadata")] = SqwPixelMetadata(
             full_filename=self._full_filename,
             npix=n_pixels,

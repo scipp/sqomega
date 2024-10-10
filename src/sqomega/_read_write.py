@@ -67,7 +67,7 @@ def write_object_array(
 ) -> None:
     position = sqw_io.position
     sqw_io.write_u8(objects.ty.value)
-    sqw_io.write_u8(len(objects.shape))
+    sqw_io.write_u8(len(objects.shape))  # TODO correct for list of structs?
     for size in objects.shape:
         sqw_io.write_u32(size)
 
@@ -150,9 +150,22 @@ def _read_single_struct(sqw_io: LowLevelSqw) -> ir.Struct:
 
 @_WRITERS.add(ir.TypeTag.struct)
 def _write_struct(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
-    for obj in objects:
-        struct: ir.Struct = obj  # type: ignore[assignment]
-        _write_single_struct(sqw_io, struct)
+    if not objects:
+        return
+    structs: list[ir.Struct] = objects  # type: ignore[assignment]
+    n_structs = len(structs)
+    n_fields = len(structs[0].field_names)
+    cell_array_shape = (n_fields, 1) if n_structs == 1 else (n_fields, 1, n_structs)
+
+    fields = []
+    for struct in structs:
+        fields.extend(struct.field_values.data)
+
+    combined = ir.Struct(
+        field_names=structs[0].field_names,
+        field_values=ir.CellArray(shape=cell_array_shape, data=fields),
+    )
+    _write_single_struct(sqw_io, combined)
 
 
 def _write_single_struct(sqw_io: LowLevelSqw, struct: ir.Struct) -> None:
