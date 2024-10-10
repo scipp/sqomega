@@ -32,6 +32,7 @@ requires-python = ">=3.10"
 dependencies = [
     "dateutils",
     "numpy",
+    "scipp",
 ]
 
 dynamic = ["version"]
