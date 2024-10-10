@@ -98,10 +98,18 @@ class SqwBuilder:
                 bat_offset=sqw_io.position,
             )
             sqw_io.write_raw(bat_buffer)
-            for buffer in block_buffers.values():
-                if buffer is None:
-                    raise NotImplementedError("data buffers not implemented")
-                sqw_io.write_raw(buffer)
+            for name, buffer in block_buffers.items():
+                descriptor = block_descriptors[name]
+                match descriptor.block_type:
+                    case SqwDataBlockType.regular:
+                        sqw_io.write_raw(buffer)
+                    case SqwDataBlockType.pix:
+                        self._pix_placeholder.write(sqw_io)
+                        sqw_io.seek(descriptor.position + descriptor.size)
+                    case _:
+                        raise NotImplementedError(
+                            f"Unsupported data block type: {descriptor.block_type}"
+                        )
 
             yield Sqw(sqw_io=sqw_io, file_header=file_header, block_allocation_table={})
 
@@ -143,7 +151,8 @@ class SqwBuilder:
     def _serialize_data_blocks(
         self,
     ) -> tuple[
-        dict[DataBlockName, memoryview], dict[DataBlockName, SqwDataBlockDescriptor]
+        dict[DataBlockName, memoryview | None],
+        dict[DataBlockName, SqwDataBlockDescriptor],
     ]:
         data_blocks = self._prepare_data_blocks()
         buffers = {}
@@ -153,24 +162,29 @@ class SqwBuilder:
             sqw_io = LowLevelSqw(
                 buffer, path=self._stored_path, byteorder=self._byteorder
             )
-            # TODO for placeholders, serialize header (e.g., npix, nrows) and get total
-            #  size.
-            #  Return custom type, either
-            #   - wrapper around memoryview
-            #   - wrapper around memoryview of header + size of array
-            #  Caller: writer memoryviews to file and reserve extra space
             write_object_array(sqw_io, data_block.serialize_to_ir().to_object_array())
 
             buffer.seek(0)
             buf = buffer.getbuffer()
             buffers[name] = buf
             descriptors[name] = SqwDataBlockDescriptor(
-                block_type=SqwDataBlockType.regular,  # TODO
+                block_type=SqwDataBlockType.regular,
                 name=name,
                 position=0,
                 size=len(buf),
                 locked=False,
             )
+
+        if self._pix_placeholder is not None:
+            buffers[('pix', 'data_wrap')] = None
+            descriptors[('pix', 'data_wrap')] = SqwDataBlockDescriptor(
+                block_type=SqwDataBlockType.pix,
+                name=('pix', 'data_wrap'),
+                position=0,
+                size=4 + 8 + self._pix_placeholder.pix_array_size(),
+                locked=False,
+            )
+
         return buffers, descriptors
 
     def _prepare_data_blocks(self) -> dict[DataBlockName, Any]:
@@ -251,3 +265,7 @@ class _PixPlaceholder:
     def pix_array_size(self) -> int:
         # *4 for f32
         return self.n_pixels * len(self.rows) * 4
+
+    def write(self, sqw_io: LowLevelSqw) -> None:
+        sqw_io.write_u32(len(self.rows))
+        sqw_io.write_u64(self.n_pixels)
