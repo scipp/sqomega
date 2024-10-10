@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from typing import ClassVar
 
 import numpy as np
-import numpy.typing as npt
 import scipp as sc
 
 from . import _ir as ir
@@ -112,41 +111,50 @@ class EnergyMode(enum.Enum):
 # struct fields instead of a nested struct in `array-dat`.
 @dataclass(kw_only=True, slots=True)
 class SqwIXExperiment(ir.Serializable):
-    filename: str
-    filepath: str
     run_id: int
     # 1 element for direct, array of detector.shape for indirect
-    efix: npt.NDArray[np.float64]
+    efix: sc.Variable  # array or scalar
     emode: EnergyMode
-    en: npt.NDArray[np.float64]
-    psi: float
-    u: sc.Variable  # dtype=vector3
-    v: sc.Variable  # dtype=vector3
-    omega: float
-    dpsi: float
-    gl: float
-    gs: float
-    angular_is_degree: bool
+    en: sc.Variable  # array
+    psi: sc.Variable  # scalar
+    u: sc.Variable  # vector
+    v: sc.Variable  # vector
+    omega: sc.Variable  # scalar
+    dpsi: sc.Variable  # scalar
+    gl: sc.Variable  # scalar
+    gs: sc.Variable  # scalar
+    filename: str = ""
+    filepath: str = ""
 
     serial_name: ClassVar[str] = "IX_experiment"
     version: ClassVar[float] = 3.0
 
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        en = (
+            self.en.to(unit='meV', dtype='float64', copy=False)
+            .broadcast(sizes={'_': 1, 'energy_transfer': -1})
+            .values
+        )
+        efix = self.efix.to(unit='meV', dtype='float64', copy=False).values
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
             "filename": ir.String(self.filename),
             "filepath": ir.String(self.filepath),
             "run_id": ir.F64(float(self.run_id)),
-            "efix": ir.Array(self.efix, ty=ir.TypeTag.f64),
+            "efix": ir.Array(efix, ty=ir.TypeTag.f64),
             "emode": ir.F64(float(self.emode.value)),
-            "en": ir.Array(self.en, ty=ir.TypeTag.f64),
-            "psi": ir.F64(self.psi),
-            "u": ir.Array(self.u.values, ty=ir.TypeTag.f64),  # TODO check unit
+            "en": ir.Array(en, ty=ir.TypeTag.f64),
+            "psi": ir.F64(_angle_value(self.psi)),
+            "u": ir.Array(self.u.values, ty=ir.TypeTag.f64),
             "v": ir.Array(self.v.values, ty=ir.TypeTag.f64),
-            "omega": ir.F64(self.omega),
-            "dpsi": ir.F64(self.dpsi),
-            "gl": ir.F64(self.gl),
-            "gs": ir.F64(self.gs),
-            "angular_is_degree": ir.Logical(self.angular_is_degree),
+            "omega": ir.F64(_angle_value(self.omega)),
+            "dpsi": ir.F64(_angle_value(self.dpsi)),
+            "gl": ir.F64(_angle_value(self.gl)),
+            "gs": ir.F64(_angle_value(self.gs)),
+            "angular_is_degree": ir.Logical(False),
         }
+
+
+def _angle_value(x: sc.Variable) -> float:
+    return x.to(unit='rad', dtype='float64', copy=False).value

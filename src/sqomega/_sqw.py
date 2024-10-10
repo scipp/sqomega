@@ -274,9 +274,12 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
 
     candidate_efix = _get_struct_field(struct, "efix").data
     if isinstance(candidate_efix, np.ndarray):
-        efix = candidate_efix
+        efix = sc.array(dims=['detector'], values=candidate_efix, unit='meV')
     else:
-        efix = np.array([e.value for e in candidate_efix])
+        (e,) = candidate_efix
+        efix = sc.scalar(e.value, unit='meV')
+
+    angle_unit = sc.Unit('deg' if g("angular_is_degree") else "rad")
 
     return SqwIXExperiment(
         filename=g("filename"),
@@ -284,15 +287,18 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
         run_id=int(g("run_id")),
         efix=efix,
         emode=EnergyMode(g("emode")),
-        en=_get_struct_field(struct, "en").data,
-        psi=g("psi"),
+        en=sc.array(
+            dims=['energy_transfer'],
+            values=_get_struct_field(struct, "en").data.squeeze(),
+            unit='meV',
+        ),
+        psi=sc.scalar(g("psi"), unit=angle_unit),
         u=sc.vector(_get_struct_field(struct, "u").data),
         v=sc.vector(_get_struct_field(struct, "v").data),
-        omega=g("omega"),
-        dpsi=g("dpsi"),
-        gl=g("gl"),
-        gs=g("gs"),
-        angular_is_degree=g("angular_is_degree"),
+        omega=sc.scalar(g("omega"), unit=angle_unit),
+        dpsi=sc.scalar(g("dpsi"), unit=angle_unit),
+        gl=sc.scalar(g("gl"), unit=angle_unit),
+        gs=sc.scalar(g("gs"), unit=angle_unit),
     )
 
 
