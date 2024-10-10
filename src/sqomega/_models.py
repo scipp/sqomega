@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from typing import ClassVar
 
 import numpy as np
+import numpy.typing as npt
+import scipp as sc
 
 from . import _ir as ir
 
@@ -59,7 +61,7 @@ class SqwMainHeader(ir.Serializable):
             "version": ir.F64(self.version),
             "full_filename": ir.String(self.full_filename),
             "title": ir.String(self.title),
-            "nfiles": ir.F64(self.nfiles),
+            "nfiles": ir.F64(float(self.nfiles)),
             "creation_date": ir.Datetime(self.creation_date),
             "creation_date_defined_privately": ir.Logical(False),
         }
@@ -82,7 +84,7 @@ class SqwPixelMetadata(ir.Serializable):
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
             "full_filename": ir.String(self.full_filename),
-            "npix": ir.F64(self.npix),
+            "npix": ir.F64(float(self.npix)),
             "data_range": ir.Array(self.data_range, ty=ir.TypeTag.f64),
         }
 
@@ -98,4 +100,53 @@ class SqwPixWrap(ir.Serializable):
         return {
             "n_rows": ir.U32(self.n_rows),
             "n_pixels": ir.U64(self.n_pixels),
+        }
+
+
+class EnergyMode(enum.Enum):
+    direct = 1
+    indirect = 2
+
+
+# In contrast to SQW files, this model contains the nested
+# struct fields instead of a nested struct in `array-dat`.
+@dataclass(kw_only=True, slots=True)
+class SqwIXExperiment(ir.Serializable):
+    filename: str
+    filepath: str
+    run_id: int
+    # 1 element for direct, array of detector.shape for indirect
+    efix: npt.NDArray[np.float64]
+    emode: EnergyMode
+    en: npt.NDArray[np.float64]
+    psi: float
+    u: sc.Variable  # dtype=vector3
+    v: sc.Variable  # dtype=vector3
+    omega: float
+    dpsi: float
+    gl: float
+    gs: float
+    angular_is_degree: bool
+
+    serial_name: ClassVar[str] = "IX_experiment"
+    version: ClassVar[float] = 3.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "filename": ir.String(self.filename),
+            "filepath": ir.String(self.filepath),
+            "run_id": ir.F64(float(self.run_id)),
+            "efix": ir.Array(self.efix, ty=ir.TypeTag.f64),
+            "emode": ir.F64(float(self.emode.value)),
+            "en": ir.Array(self.en, ty=ir.TypeTag.f64),
+            "psi": ir.F64(self.psi),
+            "u": ir.Array(self.u.values, ty=ir.TypeTag.f64),  # TODO check unit
+            "v": ir.Array(self.v.values, ty=ir.TypeTag.f64),
+            "omega": ir.F64(self.omega),
+            "dpsi": ir.F64(self.dpsi),
+            "gl": ir.F64(self.gl),
+            "gs": ir.F64(self.gs),
+            "angular_is_degree": ir.Logical(self.angular_is_degree),
         }

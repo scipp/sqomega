@@ -54,9 +54,7 @@ def read_object_array(sqw_io: LowLevelSqw) -> ir.ObjectArray | ir.CellArray:
         # to read its contents.
         return read_object_array(sqw_io)
 
-    n_dims = sqw_io.read_u8()
-    shape = tuple(sqw_io.read_u32() for _ in range(n_dims))
-
+    shape = _read_shape(sqw_io)
     reader = _READERS.get(ty, position)
     data = reader(sqw_io, shape)
     if ty == ir.TypeTag.cell:
@@ -104,12 +102,45 @@ def _write_cell(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
         write_object_array(sqw_io, obj)
 
 
+# Arrays of struct are encoded with both the shape of the object array and the shape of
+# the child cell array. Note the check of the shape.
 @_READERS.add(ir.TypeTag.struct)
 def _read_struct(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Object]:
-    return [_read_single_struct(sqw_io) for _ in range(_volume(shape))]
+    position = sqw_io.position
+    if not shape:
+        return []
+    struct = _read_single_struct(sqw_io)
+    if shape == (1,):
+        expected_shape = (len(struct.field_names), *shape)
+    else:  # There is an extra 1 in the shape.
+        expected_shape = (len(struct.field_names), 1, *shape)
+    if struct.field_values.shape != expected_shape:
+        raise RuntimeError(
+            f"While reading an array of structs with shape {shape} at position "
+            f"{position}, expected the cell array of field values to have shape "
+            f"{expected_shape}, but got {struct.field_values.shape}."
+        )
+
+    structs = []
+    n_fields = len(struct.field_names)
+    for i in range(_volume(shape)):
+        fields = struct.field_values.data[i * n_fields : (i + 1) * n_fields]
+        structs.append(
+            ir.Struct(
+                field_names=struct.field_names,
+                field_values=ir.CellArray(
+                    shape=(n_fields, 1),
+                    data=fields,
+                ),
+            )
+        )
+
+    return structs
 
 
 def _read_single_struct(sqw_io: LowLevelSqw) -> ir.Struct:
+    # Read a single object tagged as a struct.
+    # This can include an n-dimensional cell array for the struct values.
     n_fields = sqw_io.read_u32()
     field_name_sizes = [sqw_io.read_u32() for _ in range(n_fields)]
     field_names = tuple(sqw_io.read_n_chars(size) for size in field_name_sizes)
@@ -163,6 +194,11 @@ def _write_logical(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
     for obj in objects:
         logical: ir.Logical = obj  # type: ignore[assignment]
         sqw_io.write_logical(logical.value)
+
+
+def _read_shape(sqw_io: LowLevelSqw) -> _Shape:
+    n_dims = sqw_io.read_u8()
+    return tuple(sqw_io.read_u32() for _ in range(n_dims))
 
 
 _O = TypeVar("_O", bound=ir.Object | ir.ObjectArray | ir.CellArray)

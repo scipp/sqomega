@@ -6,8 +6,10 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
+import scipp as sc
+import scipp.testing
 
-from sqomega import Byteorder, Sqw, SqwFileHeader, SqwFileType
+from sqomega import Byteorder, EnergyMode, Sqw, SqwFileHeader, SqwFileType
 
 # TODO actual files in filesystem
 
@@ -141,3 +143,13 @@ def test_read_main_header(intact_v4_sqw: Path) -> None:
     assert main_header.nfiles == 23
     # TODO can we encode a timezone? How does horace react?
     assert main_header.creation_date == datetime(2024, 9, 16, 9, 32, 30)  # noqa: DTZ001
+
+
+def test_read_expdata(intact_v4_sqw: Path) -> None:
+    with Sqw.open(intact_v4_sqw) as sqw:
+        main_header = sqw.read_data_block('', 'main_header')
+        expdata = sqw.read_data_block('experiment_info', 'expdata')
+    assert len(expdata) == main_header.nfiles
+    assert expdata[0].emode == EnergyMode.direct
+    sc.testing.assert_identical(expdata[0].u, sc.vector([1.0, 0.0, 0.0]))
+    sc.testing.assert_identical(expdata[0].v, sc.vector([0.0, 1.0, 0.0]))

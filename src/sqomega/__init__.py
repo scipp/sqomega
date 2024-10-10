@@ -14,10 +14,18 @@ del importlib
 from ._sqw import Sqw
 from ._build import SqwBuilder
 from ._bytes import Byteorder
-from ._models import SqwFileType, SqwFileHeader, SqwMainHeader
+from ._models import (
+    SqwFileType,
+    SqwFileHeader,
+    SqwMainHeader,
+    EnergyMode,
+    SqwIXExperiment,
+)
 
 __all__ = [
     "Byteorder",
+    "EnergyMode",
+    "SqwIXExperiment",
     "SqwMainHeader",
     "Sqw",
     "SqwBuilder",

@@ -13,6 +13,7 @@ from typing import Any, BinaryIO, Literal
 
 import numpy as np
 import numpy.typing as npt
+import scipp as sc
 from dateutil.parser import parse as parse_datetime
 
 from . import _ir as ir
@@ -22,10 +23,12 @@ from ._files import open_binary
 from ._low_level_io import LowLevelSqw
 from ._models import (
     DataBlockName,
+    EnergyMode,
     SqwDataBlockDescriptor,
     SqwDataBlockType,
     SqwFileHeader,
     SqwFileType,
+    SqwIXExperiment,
     SqwMainHeader,
     SqwPixelMetadata,
 )
@@ -90,6 +93,7 @@ class Sqw:
         """Return an iterator over the names of all stored data blocks."""
         return self._block_allocation_table.keys()
 
+    # TODO lock blocks during writing, esp pix data
     def read_data_block(
         self, name: DataBlockName | str, level2_name: str | None = None, /
     ) -> Any:  # TODO type
@@ -257,9 +261,45 @@ def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixelMetadata:
     )
 
 
+def _parse_ix_experiment_3_0(struct: ir.Struct) -> list[SqwIXExperiment]:
+    return [
+        _parse_single_ix_experiment_3_0(run)
+        for run in _get_struct_field(struct, 'array_dat').data
+    ]
+
+
+def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
+    def g(n: str) -> Any:
+        return _get_scalar_struct_field(struct, n)
+
+    candidate_efix = _get_struct_field(struct, 'efix').data
+    if isinstance(candidate_efix, np.ndarray):
+        efix = candidate_efix
+    else:
+        efix = np.array([e.value for e in candidate_efix])
+
+    return SqwIXExperiment(
+        filename=g('filename'),
+        filepath=g('filepath'),
+        run_id=int(g('run_id')),
+        efix=efix,
+        emode=EnergyMode(g('emode')),
+        en=_get_struct_field(struct, 'en').data,
+        psi=g('psi'),
+        u=sc.vector(_get_struct_field(struct, 'u').data),
+        v=sc.vector(_get_struct_field(struct, 'v').data),
+        omega=g('omega'),
+        dpsi=g('dpsi'),
+        gl=g('gl'),
+        gs=g('gs'),
+        angular_is_degree=g('angular_is_degree'),
+    )
+
+
 _BLOCK_PARSERS = {
     (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
     (SqwPixelMetadata.serial_name, SqwPixelMetadata.version): _parse_pix_metadata_1_0,
+    (SqwIXExperiment.serial_name, SqwIXExperiment.version): _parse_ix_experiment_3_0,
 }
 
 
