@@ -113,6 +113,15 @@ class Sqw:
                     f"Unsupported data block type: {block_descriptor.block_type}"
                 )
 
+    def __str__(self) -> str:
+        path = self._sqw_io.path
+        path_piece = "In-memory SQW file" if path is None else f"SQW file '{path}'"
+        program = self._file_header.prog_name
+        version = self._file_header.prog_version
+        sqw_type = self._file_header.sqw_type
+        n_dims = self._file_header.n_dims
+        return f"{path_piece} ({sqw_type}, {program=}, {version=}, {n_dims=})"
+
 
 def _read_file_header(sqw_io: LowLevelSqw) -> SqwFileHeader:
     prog_name = sqw_io.read_char_array()
