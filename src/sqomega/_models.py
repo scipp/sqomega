@@ -102,6 +102,31 @@ class SqwPixWrap(ir.Serializable):
         }
 
 
+@dataclass(kw_only=True, slots=True)
+class SqwIXSource(ir.Serializable):
+    name: str
+    target_name: str
+    frequency: sc.Variable
+
+    serial_name: ClassVar[str] = "IX_source"
+    version: ClassVar[float] = 2.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        raise NotImplementedError()
+
+
+@dataclass(kw_only=True, slots=True)
+class SqwIXNullInstrument(ir.Serializable):
+    name: str
+    source: SqwIXSource
+
+    serial_name: ClassVar[str] = "IX_null_inst"
+    version: ClassVar[float] = 2.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        raise NotImplementedError()
+
+
 class EnergyMode(enum.Enum):
     direct = 1
     indirect = 2
@@ -157,10 +182,6 @@ class SqwIXExperiment(ir.Serializable):
         }
 
 
-def _angle_value(x: sc.Variable) -> float:
-    return x.to(unit='rad', dtype='float64', copy=False).value
-
-
 @dataclass(slots=True)
 class SqwMultiIXExperiment(ir.Serializable):
     array_dat: list[SqwIXExperiment]
@@ -178,3 +199,7 @@ class SqwMultiIXExperiment(ir.Serializable):
                 data=[exp.serialize_to_ir() for exp in self.array_dat],
             ),
         }
+
+
+def _angle_value(x: sc.Variable) -> float:
+    return x.to(unit='rad', dtype='float64', copy=False).value

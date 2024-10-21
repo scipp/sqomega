@@ -29,6 +29,8 @@ from ._models import (
     SqwFileHeader,
     SqwFileType,
     SqwIXExperiment,
+    SqwIXNullInstrument,
+    SqwIXSource,
     SqwMainHeader,
     SqwPixelMetadata,
 )
@@ -270,6 +272,24 @@ def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixelMetadata:
     )
 
 
+def _parse_ix_source_2_0(struct: ir.Struct) -> SqwIXSource:
+    name = _get_scalar_struct_field(struct, "name")
+    target_name = _get_scalar_struct_field(struct, "target_name")
+    frequency = _get_scalar_struct_field(struct, "frequency")
+    return SqwIXSource(
+        name=name,
+        target_name=target_name,
+        # TODO unit currently unknown
+        frequency=sc.scalar(frequency, unit=None),
+    )
+
+
+def _parse_ix_null_instrument_1_0(struct: ir.Struct) -> SqwIXNullInstrument:
+    source = _try_parse_block(_get_struct_field(struct, "source"))
+    name = _get_scalar_struct_field(struct, "name")
+    return SqwIXNullInstrument(name=name, source=source)
+
+
 def _parse_ix_experiment_3_0(struct: ir.Struct) -> list[SqwIXExperiment]:
     return [
         _parse_single_ix_experiment_3_0(run)
@@ -313,10 +333,34 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
     )
 
 
+def _parse_unique_references_container_1_0(struct: ir.Struct) -> list[Any]:
+    objects = _get_struct_field(struct, "unique_objects").data
+    if len(objects) != 1:
+        raise AbortParse(
+            "Expected exactly one object in a 'unique_references_container', "
+            f"got {len(objects)}"
+        )
+    return _parse_unique_objects_container_1_0(objects[0])
+
+
+def _parse_unique_objects_container_1_0(struct: ir.Struct) -> list[Any]:
+    objects = _get_struct_field(struct, "unique_objects").data
+    idx = _get_struct_field(struct, "idx").data
+    parsed_objects = [_try_parse_block(obj) for obj in objects]
+    return [parsed_objects[int(i) - 1] for i in idx]
+
+
 _BLOCK_PARSERS = {
     (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
     (SqwPixelMetadata.serial_name, SqwPixelMetadata.version): _parse_pix_metadata_1_0,
+    (
+        SqwIXNullInstrument.serial_name,
+        SqwIXNullInstrument.version,
+    ): _parse_ix_null_instrument_1_0,
     (SqwIXExperiment.serial_name, SqwIXExperiment.version): _parse_ix_experiment_3_0,
+    (SqwIXSource.serial_name, SqwIXSource.version): _parse_ix_source_2_0,
+    ("unique_references_container", 1.0): _parse_unique_references_container_1_0,
+    ("unique_objects_container", 1.0): _parse_unique_objects_container_1_0,
 }
 
 
