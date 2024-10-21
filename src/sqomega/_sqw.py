@@ -30,6 +30,7 @@ from ._models import (
     SqwFileType,
     SqwIXExperiment,
     SqwIXNullInstrument,
+    SqwIXSample,
     SqwIXSource,
     SqwMainHeader,
     SqwPixelMetadata,
@@ -290,6 +291,19 @@ def _parse_ix_null_instrument_1_0(struct: ir.Struct) -> SqwIXNullInstrument:
     return SqwIXNullInstrument(name=name, source=source)
 
 
+def _parse_ix_sample_0_0(struct: ir.Struct) -> SqwIXSample:
+    name = _get_scalar_struct_field(struct, "name")
+    lattice_spacing = sc.vector(
+        _get_struct_field(struct, "alatt").data, unit='1/angstrom'
+    )
+    lattice_angle = sc.vector(_get_struct_field(struct, "angdeg").data, unit='deg')
+    return SqwIXSample(
+        name=name,
+        lattice_spacing=lattice_spacing,
+        lattice_angle=lattice_angle,
+    )
+
+
 def _parse_ix_experiment_3_0(struct: ir.Struct) -> list[SqwIXExperiment]:
     return [
         _parse_single_ix_experiment_3_0(run)
@@ -358,6 +372,7 @@ _BLOCK_PARSERS = {
         SqwIXNullInstrument.version,
     ): _parse_ix_null_instrument_1_0,
     (SqwIXExperiment.serial_name, SqwIXExperiment.version): _parse_ix_experiment_3_0,
+    (SqwIXSample.serial_name, SqwIXSample.version): _parse_ix_sample_0_0,
     (SqwIXSource.serial_name, SqwIXSource.version): _parse_ix_source_2_0,
     ("unique_references_container", 1.0): _parse_unique_references_container_1_0,
     ("unique_objects_container", 1.0): _parse_unique_objects_container_1_0,

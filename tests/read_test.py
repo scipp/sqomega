@@ -153,3 +153,17 @@ def test_read_expdata(intact_v4_sqw: Path) -> None:
     assert expdata[0].emode == EnergyMode.direct
     sc.testing.assert_identical(expdata[0].u, sc.vector([1.0, 0.0, 0.0]))
     sc.testing.assert_identical(expdata[0].v, sc.vector([0.0, 1.0, 0.0]))
+
+
+def test_read_sample(intact_v4_sqw: Path) -> None:
+    with Sqw.open(intact_v4_sqw) as sqw:
+        main_header = sqw.read_data_block("", "main_header")
+        samples = sqw.read_data_block("experiment_info", "samples")
+    assert len(samples) == main_header.nfiles
+    assert all(sample == samples[0] for sample in samples[1:])
+    sc.testing.assert_identical(
+        samples[0].lattice_spacing, sc.vector([2.87, 2.87, 2.87], unit="1/angstrom")
+    )
+    sc.testing.assert_identical(
+        samples[0].lattice_angle, sc.vector([90, 90, 90], unit="deg")
+    )

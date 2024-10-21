@@ -132,6 +132,19 @@ class EnergyMode(enum.Enum):
     indirect = 2
 
 
+@dataclass(kw_only=True, slots=True)
+class SqwIXSample(ir.Serializable):
+    name: str
+    lattice_spacing: sc.Variable  # vector
+    lattice_angle: sc.Variable  # vector
+
+    serial_name: ClassVar[str] = "IX_samp"
+    version: ClassVar[float] = 0.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        raise NotImplementedError()
+
+
 # In contrast to SQW files, this model contains the nested
 # struct fields instead of a nested struct in `array-dat`.
 @dataclass(kw_only=True, slots=True)
