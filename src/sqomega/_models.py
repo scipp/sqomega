@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import ClassVar
 
@@ -65,7 +65,7 @@ class SqwMainHeader(ir.Serializable):
             "creation_date_defined_privately": ir.Logical(False),
         }
 
-    def prepare_for_serialization(self) -> SqwMainHeader:
+    def prepare_for_serialization(self, filename: str, filepath: str) -> SqwMainHeader:
         return replace(self, creation_date=datetime.now(tz=timezone.utc))
 
 
@@ -75,7 +75,7 @@ class SqwLineAxes(ir.Serializable):
     label: list[str]
     img_scales: list[sc.Variable]
     img_range: list[sc.Variable]
-    nbins_all_dims: sc.Variable  # shape=(n_dim,) dtype=float64 [encodes int]
+    n_bins_all_dims: sc.Variable  # shape=(n_dim,) dtype=float64 [encodes int]
     single_bin_defines_iax: sc.Variable  # shape=(n_dim,) dtype=bool
     dax: sc.Variable
     offset: list[sc.Variable]
@@ -87,7 +87,28 @@ class SqwLineAxes(ir.Serializable):
     version: ClassVar[float] = 7.0
 
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
-        raise NotImplementedError()
+        units = ['1/angstrom'] * 3 + ['meV']  # depends on SqwLineProj.type
+
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "filename": ir.String(self.filename),
+            "filepath": ir.String(self.filepath),
+            "title": ir.String(self.title),
+            "label": _serialize_str_array(self.label),
+            "img_scales": _serialize_multi_unit_array(self.img_scales, units),
+            "img_range": _serialize_multi_unit_array(self.img_range, units),
+            "nbins_all_dims": _variable_to_float_array(self.n_bins_all_dims, None),
+            "single_bin_defines_iax": ir.ObjectArray(
+                shape=self.n_bins_all_dims.shape,
+                data=[ir.Logical(bool(b)) for b in self.single_bin_defines_iax.values],
+                ty=ir.TypeTag.logical,
+            ),
+            # +1 to convert to 1-based indexing
+            "dax": _variable_to_float_array(self.dax + sc.index(1), None),
+            "offset": _serialize_multi_unit_array(self.offset, units),
+            "changes_aspect_ratio": ir.Logical(self.changes_aspect_ratio),
+        }
 
 
 @dataclass(kw_only=True, slots=True)
@@ -107,14 +128,38 @@ class SqwLineProj(ir.Serializable):
     version: ClassVar[float] = 7.0
 
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
-        raise NotImplementedError()
+        if self.type != "aaa":
+            raise NotImplementedError(f"Projection type not supported: {self.type}")
+        units = ['1/angstrom'] * 3 + ['meV']  # depends on SqwLineProj.type
+
+        if self.w is None:
+            w = ir.Array(np.array([]), ir.TypeTag.f64)
+        else:
+            w = _variable_to_float_array(self.w, "1/angstrom")
+
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "alatt": _variable_to_float_array(self.lattice_spacing, "1/angstrom"),
+            "angdeg": _variable_to_float_array(self.lattice_angle, "deg"),
+            "offset": _serialize_multi_unit_array(self.offset, units),
+            "title": ir.String(self.title),
+            "label": _serialize_str_array(self.label),
+            "u": _variable_to_float_array(self.u, "1/angstrom"),
+            "v": _variable_to_float_array(self.v, "1/angstrom"),
+            "w": w,
+            "nonorthogonal": ir.Logical(self.non_orthogonal),
+            "type": ir.String(self.type),
+        }
 
 
 @dataclass(kw_only=True, slots=True)
 class SqwDndMetadata(ir.Serializable):
     axes: SqwLineAxes
     proj: SqwLineProj
-    creation_date: datetime
+    creation_date: datetime = field(
+        default_factory=lambda: datetime.now(tz=timezone.utc)
+    )
 
     serial_name: ClassVar[str] = "dnd_metadata"
     version: ClassVar[float] = 1.0
@@ -128,19 +173,23 @@ class SqwDndMetadata(ir.Serializable):
             "version": ir.F64(self.version),
             "axes": ir.ObjectArray(
                 ty=ir.TypeTag.struct,
-                shape=(len(axes.field_names),),
+                shape=(1,),
                 data=[axes],
             ),
             "proj": ir.ObjectArray(
                 ty=ir.TypeTag.struct,
-                shape=(len(proj.field_names),),
+                shape=(1,),
                 data=[proj],
             ),
             "creation_date_str": ir.Datetime(self.creation_date),
         }
 
-    def prepare_for_serialization(self) -> SqwDndMetadata:
-        return replace(self, creation_date=datetime.now(tz=timezone.utc))
+    def prepare_for_serialization(self, filename: str, filepath: str) -> SqwDndMetadata:
+        return replace(
+            self,
+            creation_date=datetime.now(tz=timezone.utc),
+            axes=replace(self.axes, filename=filename, filepath=filepath),
+        )
 
 
 @dataclass(kw_only=True, slots=True)
@@ -290,3 +339,31 @@ class SqwMultiIXExperiment(ir.Serializable):
 
 def _angle_value(x: sc.Variable) -> float:
     return x.to(unit='rad', dtype='float64', copy=False).value
+
+
+def _serialize_str_array(strings: list[str]) -> ir.CellArray:
+    return ir.CellArray(
+        shape=(len(strings),),
+        data=[
+            ir.ObjectArray(shape=(len(s),), data=[ir.String(s)], ty=ir.TypeTag.char)
+            for s in strings
+        ],
+    )
+
+
+def _serialize_multi_unit_array(data: list[sc.Variable], units: list[str]) -> ir.Array:
+    data = np.stack(
+        [d.to(unit=u, dtype='float64').values for d, u in zip(data, units, strict=True)]
+    )
+    return ir.Array(data, ty=ir.TypeTag.f64)
+
+
+def _variable_to_float_array(var: sc.Variable, unit: str | None) -> ir.Array:
+    if unit is not None:
+        var = var.to(unit=unit, copy=False)
+    elif var.unit is not None:
+        raise sc.UnitError(f"Expected no unit, got: {var.unit}")
+    return ir.Array(
+        var.values.astype('float64', copy=False),
+        ir.TypeTag.f64,
+    )

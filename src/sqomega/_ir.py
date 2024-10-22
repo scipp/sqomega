@@ -136,7 +136,7 @@ class Serializable(ABC):
 
 
 def _serialize_field(field: Object) -> ObjectArray:
-    if isinstance(field, ObjectArray):
+    if isinstance(field, ObjectArray | CellArray):
         return field
     if isinstance(field, Datetime):
         field = String(value=field.value.isoformat(timespec="seconds"))
