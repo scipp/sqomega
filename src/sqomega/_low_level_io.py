@@ -139,6 +139,9 @@ class LowLevelSqw:
     def read_array(
         self, shape: tuple[int, ...], dtype: np.dtype[_E]
     ) -> npt.NDArray[_E]:
+        if not shape:
+            return np.array([], dtype=dtype)
+
         count = int(np.prod(shape))
         dtype = dtype.newbyteorder(self.byteorder.value)
         if isinstance(self._file, BytesIO):
