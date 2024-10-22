@@ -70,6 +70,80 @@ class SqwMainHeader(ir.Serializable):
 
 
 @dataclass(kw_only=True, slots=True)
+class SqwLineAxes(ir.Serializable):
+    title: str
+    label: list[str]
+    img_scales: sc.Variable  # shape=(n_dim,)
+    img_range: sc.Variable  # shape=(n_dim, 2)
+    nbins_all_dims: sc.Variable  # shape=(n_dim,) dtype=float64 [encodes int]
+    single_bin_defines_iax: sc.Variable  # shape=(n_dim,) dtype=bool
+    dax: sc.Variable  # shape=(n_dim,)
+    offset: sc.Variable  # shape=(n_dim,)
+    changes_aspect_ratio: bool
+    filename: str = ""
+    filepath: str = ""
+
+    serial_name: ClassVar[str] = "line_axes"
+    version: ClassVar[float] = 7.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        raise NotImplementedError()
+
+
+@dataclass(kw_only=True, slots=True)
+class SqwLineProj(ir.Serializable):
+    lattice_spacing: sc.Variable  # vector
+    lattice_angle: sc.Variable  # vector
+    offset: sc.Variable
+    title: str
+    label: list[str]
+    u: sc.Variable  # vector
+    v: sc.Variable  # vector
+    w: sc.Variable  # vector
+    non_orthogonal: bool
+    type: str
+
+    serial_name: ClassVar[str] = "line_proj"
+    version: ClassVar[float] = 7.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        raise NotImplementedError()
+
+
+@dataclass(kw_only=True, slots=True)
+class SqwDndMetadata(ir.Serializable):
+    axes: SqwLineAxes
+    proj: SqwLineProj
+    creation_date: datetime
+
+    serial_name: ClassVar[str] = "dnd_metadata"
+    version: ClassVar[float] = 1.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        axes = self.axes.serialize_to_ir()
+        proj = self.proj.serialize_to_ir()
+
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "axes": ir.ObjectArray(
+                ty=ir.TypeTag.struct,
+                shape=(len(axes.field_names),),
+                data=[axes],
+            ),
+            "proj": ir.ObjectArray(
+                ty=ir.TypeTag.struct,
+                shape=(len(proj.field_names),),
+                data=[proj],
+            ),
+            "creation_date_str": ir.Datetime(self.creation_date),
+        }
+
+    def prepare_for_serialization(self) -> SqwDndMetadata:
+        return replace(self, creation_date=datetime.now(tz=timezone.utc))
+
+
+@dataclass(kw_only=True, slots=True)
 class SqwPixelMetadata(ir.Serializable):
     full_filename: str
     npix: int

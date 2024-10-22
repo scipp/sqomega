@@ -26,12 +26,15 @@ from ._models import (
     EnergyMode,
     SqwDataBlockDescriptor,
     SqwDataBlockType,
+    SqwDndMetadata,
     SqwFileHeader,
     SqwFileType,
     SqwIXExperiment,
     SqwIXNullInstrument,
     SqwIXSample,
     SqwIXSource,
+    SqwLineAxes,
+    SqwLineProj,
     SqwMainHeader,
     SqwPixelMetadata,
 )
@@ -234,7 +237,7 @@ def _get_struct_type_id(struct: ir.Struct) -> tuple[str, float]:
     return n.value, v.value
 
 
-def _get_struct_field(struct: ir.Struct, name: str) -> ir.ObjectArray:
+def _get_struct_field(struct: ir.Struct, name: str) -> ir.ObjectArray | ir.CellArray:
     for field_name, value in zip(
         struct.field_names, struct.field_values.data, strict=True
     ):
@@ -253,12 +256,100 @@ def _get_scalar_struct_field(struct: ir.Struct, name: str) -> Any:
     return field.data[0].value
 
 
+def _unpack_cell_array(cell_array: ir.CellArray) -> list[Any]:
+    # This does not support general cell arrays.
+    # It is specialized for 1d cell arrays of strings.
+    data = (obj.data for obj in cell_array.data)
+    return [d[0].value if len(d) == 1 else [x.value for x in d] for d in data]
+
+
 def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
     return SqwMainHeader(
         full_filename=_get_scalar_struct_field(struct, "full_filename"),
         title=_get_scalar_struct_field(struct, "title"),
         nfiles=int(_get_scalar_struct_field(struct, "nfiles")),
         creation_date=parse_datetime(_get_scalar_struct_field(struct, "creation_date")),
+    )
+
+
+def _parse_dnd_metadata_1_0(struct: ir.Struct) -> SqwDndMetadata:
+    return SqwDndMetadata(
+        axes=_parse_block(_get_struct_field(struct, "axes")),
+        proj=_parse_block(_get_struct_field(struct, "proj")),
+        creation_date=parse_datetime(
+            _get_scalar_struct_field(struct, "creation_date_str")
+        ),
+    )
+
+
+def _parse_line_axes_7_0(struct: ir.Struct) -> SqwLineAxes:
+    return SqwLineAxes(
+        title=_get_scalar_struct_field(struct, "title"),
+        label=_unpack_cell_array(_get_struct_field(struct, "label")),
+        img_scales=sc.array(
+            dims=('axis',),
+            values=_get_struct_field(struct, "img_scales").data,
+            unit=None,  # TODO
+        ),
+        img_range=sc.array(
+            dims=('axis', 'range'),
+            values=_get_struct_field(struct, "img_range").data,
+            unit=None,  # TODO
+        ),
+        nbins_all_dims=sc.array(
+            dims=('axis',),
+            values=_get_struct_field(struct, "nbins_all_dims").data,
+            dtype='int64',
+            unit=None,
+        ),
+        single_bin_defines_iax=sc.array(
+            dims=('axis',),
+            values=[
+                d.value
+                for d in _get_struct_field(struct, "single_bin_defines_iax").data
+            ],
+        ),
+        dax=sc.array(
+            dims=('axis',),
+            values=_get_struct_field(struct, "dax").data,
+            unit=None,  # TODO
+        ),
+        offset=sc.array(
+            dims=('axis',),
+            values=_get_struct_field(struct, "offset").data,
+            unit=None,  # TODO
+        ),
+        changes_aspect_ratio=_get_scalar_struct_field(struct, "changes_aspect_ratio"),
+        filename=_get_scalar_struct_field(struct, "filename"),
+        filepath=_get_scalar_struct_field(struct, "filepath"),
+    )
+
+
+def _parse_line_proj_7_0(struct: ir.Struct) -> SqwLineProj:
+    def get_vec(name: str, unit: str) -> sc.Variable:
+        values = _get_struct_field(struct, name).data
+        if values.shape == (0,):
+            # Vectors might be encoded as empty arrays
+            return sc.vector([0, 0, 0], unit=unit)
+        return sc.vector(values, unit=unit)
+
+    return SqwLineProj(
+        lattice_spacing=sc.vector(
+            _get_struct_field(struct, "alatt").data, unit='1/angstrom'
+        ),
+        lattice_angle=sc.vector(_get_struct_field(struct, "angdeg").data, unit='deg'),
+        offset=sc.array(
+            dims=('axis',),
+            values=_get_struct_field(struct, "offset").data,
+            unit=None,  # TODO
+        ),
+        title=_get_scalar_struct_field(struct, "title"),
+        label=_unpack_cell_array(_get_struct_field(struct, "label")),
+        u=get_vec("u", unit=None),  # TODO
+        v=get_vec("v", unit=None),  # TODO
+        w=get_vec("w", unit=None),  # TODO
+        non_orthogonal=_get_scalar_struct_field(struct, "nonorthogonal"),
+        type=_get_scalar_struct_field(struct, "type"),
     )
 
 
@@ -366,6 +457,9 @@ def _parse_unique_objects_container_1_0(struct: ir.Struct) -> list[Any]:
 
 _BLOCK_PARSERS = {
     (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
+    (SqwDndMetadata.serial_name, SqwDndMetadata.version): _parse_dnd_metadata_1_0,
+    (SqwLineAxes.serial_name, SqwLineAxes.version): _parse_line_axes_7_0,
+    (SqwLineProj.serial_name, SqwLineProj.version): _parse_line_proj_7_0,
     (SqwPixelMetadata.serial_name, SqwPixelMetadata.version): _parse_pix_metadata_1_0,
     (
         SqwIXNullInstrument.serial_name,
