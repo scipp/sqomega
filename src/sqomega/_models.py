@@ -73,12 +73,12 @@ class SqwMainHeader(ir.Serializable):
 class SqwLineAxes(ir.Serializable):
     title: str
     label: list[str]
-    img_scales: sc.Variable  # shape=(n_dim,)
-    img_range: sc.Variable  # shape=(n_dim, 2)
+    img_scales: list[sc.Variable]
+    img_range: list[sc.Variable]
     nbins_all_dims: sc.Variable  # shape=(n_dim,) dtype=float64 [encodes int]
     single_bin_defines_iax: sc.Variable  # shape=(n_dim,) dtype=bool
-    dax: sc.Variable  # shape=(n_dim,)
-    offset: sc.Variable  # shape=(n_dim,)
+    dax: sc.Variable
+    offset: list[sc.Variable]
     changes_aspect_ratio: bool
     filename: str = ""
     filepath: str = ""
@@ -94,12 +94,12 @@ class SqwLineAxes(ir.Serializable):
 class SqwLineProj(ir.Serializable):
     lattice_spacing: sc.Variable  # vector
     lattice_angle: sc.Variable  # vector
-    offset: sc.Variable
+    offset: list[sc.Variable]
     title: str
     label: list[str]
     u: sc.Variable  # vector
     v: sc.Variable  # vector
-    w: sc.Variable  # vector
+    w: sc.Variable | None  # vector
     non_orthogonal: bool
     type: str
 

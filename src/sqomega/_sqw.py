@@ -273,28 +273,28 @@ def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
 
 
 def _parse_dnd_metadata_1_0(struct: ir.Struct) -> SqwDndMetadata:
+    (axes_struct,) = _get_struct_field(struct, "axes").data
+    (proj_struct,) = _get_struct_field(struct, "proj").data
+    proj, units = _parse_line_proj_7_0(proj_struct)
+    axes = _parse_line_axes_7_0(axes_struct, units)
     return SqwDndMetadata(
-        axes=_parse_block(_get_struct_field(struct, "axes")),
-        proj=_parse_block(_get_struct_field(struct, "proj")),
+        axes=axes,
+        proj=proj,
         creation_date=parse_datetime(
             _get_scalar_struct_field(struct, "creation_date_str")
         ),
     )
 
 
-def _parse_line_axes_7_0(struct: ir.Struct) -> SqwLineAxes:
+def _parse_line_axes_7_0(struct: ir.Struct, units: list[str]) -> SqwLineAxes:
     return SqwLineAxes(
         title=_get_scalar_struct_field(struct, "title"),
         label=_unpack_cell_array(_get_struct_field(struct, "label")),
-        img_scales=sc.array(
-            dims=('axis',),
-            values=_get_struct_field(struct, "img_scales").data,
-            unit=None,  # TODO
+        img_scales=_parse_1d_multi_unit_array(
+            _get_struct_field(struct, "img_scales").data, units
         ),
-        img_range=sc.array(
-            dims=('axis', 'range'),
-            values=_get_struct_field(struct, "img_range").data,
-            unit=None,  # TODO
+        img_range=_parse_2d_multi_unit_array(
+            'range', _get_struct_field(struct, "img_range").data, units
         ),
         nbins_all_dims=sc.array(
             dims=('axis',),
@@ -311,13 +311,12 @@ def _parse_line_axes_7_0(struct: ir.Struct) -> SqwLineAxes:
         ),
         dax=sc.array(
             dims=('axis',),
-            values=_get_struct_field(struct, "dax").data,
-            unit=None,  # TODO
+            # -1 to convert to 0-based indexing
+            values=_get_struct_field(struct, "dax").data - 1,
+            unit=None,
         ),
-        offset=sc.array(
-            dims=('axis',),
-            values=_get_struct_field(struct, "offset").data,
-            unit=None,  # TODO
+        offset=_parse_1d_multi_unit_array(
+            _get_struct_field(struct, "offset").data, units
         ),
         changes_aspect_ratio=_get_scalar_struct_field(struct, "changes_aspect_ratio"),
         filename=_get_scalar_struct_field(struct, "filename"),
@@ -325,32 +324,54 @@ def _parse_line_axes_7_0(struct: ir.Struct) -> SqwLineAxes:
     )
 
 
-def _parse_line_proj_7_0(struct: ir.Struct) -> SqwLineProj:
-    def get_vec(name: str, unit: str) -> sc.Variable:
+def _parse_line_proj_7_0(struct: ir.Struct) -> tuple[SqwLineProj, list[str]]:
+    def get_vec(name: str, unit: str) -> sc.Variable | None:
         values = _get_struct_field(struct, name).data
         if values.shape == (0,):
-            # Vectors might be encoded as empty arrays
-            return sc.vector([0, 0, 0], unit=unit)
+            return None
         return sc.vector(values, unit=unit)
+
+    ty = _get_scalar_struct_field(struct, "type")
+    if ty != 'aaa':
+        # See https://pace-neutrons.github.io/Horace/v4.0.0/manual/Cutting_data_of_interest_from_SQW_files_and_objects.html#projection-in-details
+        # for other units
+        raise AbortParse(f"Unsupported 'type' in line_proj: {ty}")
+    units = ['1/angstrom'] * 3 + ['meV']
 
     return SqwLineProj(
         lattice_spacing=sc.vector(
             _get_struct_field(struct, "alatt").data, unit='1/angstrom'
         ),
         lattice_angle=sc.vector(_get_struct_field(struct, "angdeg").data, unit='deg'),
-        offset=sc.array(
-            dims=('axis',),
-            values=_get_struct_field(struct, "offset").data,
-            unit=None,  # TODO
+        offset=_parse_1d_multi_unit_array(
+            _get_struct_field(struct, "offset").data,
+            units,
         ),
         title=_get_scalar_struct_field(struct, "title"),
         label=_unpack_cell_array(_get_struct_field(struct, "label")),
-        u=get_vec("u", unit=None),  # TODO
-        v=get_vec("v", unit=None),  # TODO
-        w=get_vec("w", unit=None),  # TODO
+        u=get_vec("u", unit=units[0]),
+        v=get_vec("v", unit=units[1]),
+        w=get_vec("w", unit=units[2]),
         non_orthogonal=_get_scalar_struct_field(struct, "nonorthogonal"),
-        type=_get_scalar_struct_field(struct, "type"),
-    )
+        type=ty,
+    ), units
+
+
+def _parse_1d_multi_unit_array(
+    values: npt.NDArray[Any], units: list[str]
+) -> list[sc.Variable]:
+    return [
+        sc.scalar(value, unit=unit) for value, unit in zip(values, units, strict=False)
+    ]
+
+
+def _parse_2d_multi_unit_array(
+    dim: str, values: npt.NDArray[Any], units: list[str]
+) -> list[sc.Variable]:
+    return [
+        sc.array(dims=[dim], values=values, unit=unit)
+        for values, unit in zip(values, units, strict=False)
+    ]
 
 
 def _parse_pix_metadata_1_0(struct: ir.Struct) -> SqwPixelMetadata:
@@ -458,8 +479,6 @@ def _parse_unique_objects_container_1_0(struct: ir.Struct) -> list[Any]:
 _BLOCK_PARSERS = {
     (SqwMainHeader.serial_name, SqwMainHeader.version): _parse_main_header_cl_2_0,
     (SqwDndMetadata.serial_name, SqwDndMetadata.version): _parse_dnd_metadata_1_0,
-    (SqwLineAxes.serial_name, SqwLineAxes.version): _parse_line_axes_7_0,
-    (SqwLineProj.serial_name, SqwLineProj.version): _parse_line_proj_7_0,
     (SqwPixelMetadata.serial_name, SqwPixelMetadata.version): _parse_pix_metadata_1_0,
     (
         SqwIXNullInstrument.serial_name,
