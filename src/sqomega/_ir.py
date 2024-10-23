@@ -45,7 +45,8 @@ class ObjectArray:
 @dataclass(kw_only=True)
 class CellArray:
     shape: tuple[int, ...]
-    data: list[ObjectArray]  # nested object array to encode types of each item
+    # nested object array to encode types of each item
+    data: list[ObjectArray | CellArray]
     ty: ClassVar[TypeTag] = TypeTag.cell
 
 
@@ -119,7 +120,7 @@ Object = Struct | String | F64 | U64 | U32 | U8 | Logical | Array | Datetime
 
 class Serializable(ABC):
     @abstractmethod
-    def _serialize_to_dict(self) -> dict[str, Object]: ...
+    def _serialize_to_dict(self) -> dict[str, Object | ObjectArray | CellArray]: ...
 
     def serialize_to_ir(self) -> Struct:
         fields = self._serialize_to_dict()
@@ -135,7 +136,9 @@ class Serializable(ABC):
         return self
 
 
-def _serialize_field(field: Object) -> ObjectArray:
+def _serialize_field(
+    field: Object | ObjectArray | CellArray,
+) -> ObjectArray | CellArray:
     if isinstance(field, ObjectArray | CellArray):
         return field
     if isinstance(field, Datetime):

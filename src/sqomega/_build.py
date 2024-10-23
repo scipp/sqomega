@@ -110,9 +110,11 @@ class SqwBuilder:
                 descriptor = block_descriptors[name]
                 match descriptor.block_type:
                     case SqwDataBlockType.regular:
-                        sqw_io.write_raw(buffer)
+                        # Type guaranteed by _serialize_data_blocks
+                        sqw_io.write_raw(buffer)  # type: ignore[arg-type]
                     case SqwDataBlockType.pix:
-                        self._pix_placeholder.write(sqw_io)
+                        # Type guaranteed by _serialize_data_blocks
+                        self._pix_placeholder.write(sqw_io)  # type: ignore[union-attr]
                         sqw_io.seek(descriptor.position + descriptor.size)
                     case _:
                         raise NotImplementedError(
@@ -175,7 +177,7 @@ class SqwBuilder:
         dict[DataBlockName, SqwDataBlockDescriptor],
     ]:
         data_blocks = self._prepare_data_blocks()
-        buffers = {}
+        buffers: dict[DataBlockName, memoryview | None] = {}
         descriptors = {}
         for name, data_block in data_blocks.items():
             buffer = BytesIO()

@@ -3,7 +3,7 @@
 
 """Implementations of readers and writers for SQW object types."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Generic, TypeVar
 
 import numpy as np
@@ -14,7 +14,9 @@ from ._low_level_io import LowLevelSqw
 
 _Shape = tuple[int, ...]
 _T = TypeVar("_T")
-_AnyObjectList = list[ir.Object] | list[ir.ObjectArray] | npt.NDArray[Any]
+_AnyObjectList = (
+    Sequence[ir.Object] | list[ir.ObjectArray | ir.CellArray] | npt.NDArray[Any]
+)
 _ObjectReader = Callable[[LowLevelSqw, _Shape], _AnyObjectList]
 _ObjectWriter = Callable[[LowLevelSqw, _AnyObjectList], None]
 
@@ -105,7 +107,7 @@ def _write_cell(sqw_io: LowLevelSqw, objects: _AnyObjectList) -> None:
 # Arrays of struct are encoded with both the shape of the object array and the shape of
 # the child cell array. Note the check of the shape.
 @_READERS.add(ir.TypeTag.struct)
-def _read_struct(sqw_io: LowLevelSqw, shape: _Shape) -> list[ir.Object]:
+def _read_struct(sqw_io: LowLevelSqw, shape: _Shape) -> Sequence[ir.Object]:
     position = sqw_io.position
     if not shape:
         return []

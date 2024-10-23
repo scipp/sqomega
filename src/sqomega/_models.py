@@ -6,14 +6,14 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from typing import ClassVar
+from typing import ClassVar, TypeAlias
 
 import numpy as np
 import scipp as sc
 
 from . import _ir as ir
 
-DataBlockName = tuple[str, str]
+DataBlockName: TypeAlias = tuple[str, str]
 
 
 class SqwFileType(enum.Enum):
@@ -54,7 +54,9 @@ class SqwMainHeader(ir.Serializable):
     serial_name: ClassVar[str] = "main_header_cl"
     version: ClassVar[float] = 2.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -86,7 +88,9 @@ class SqwLineAxes(ir.Serializable):
     serial_name: ClassVar[str] = "line_axes"
     version: ClassVar[float] = 7.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         units = ['1/angstrom'] * 3 + ['meV']  # depends on SqwLineProj.type
 
         return {
@@ -127,7 +131,9 @@ class SqwLineProj(ir.Serializable):
     serial_name: ClassVar[str] = "line_proj"
     version: ClassVar[float] = 7.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         if self.type != "aaa":
             raise NotImplementedError(f"Projection type not supported: {self.type}")
         units = ['1/angstrom'] * 3 + ['meV']  # depends on SqwLineProj.type
@@ -164,7 +170,9 @@ class SqwDndMetadata(ir.Serializable):
     serial_name: ClassVar[str] = "dnd_metadata"
     version: ClassVar[float] = 1.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         axes = self.axes.serialize_to_ir()
         proj = self.proj.serialize_to_ir()
 
@@ -201,7 +209,9 @@ class SqwPixelMetadata(ir.Serializable):
     serial_name: ClassVar[str] = "pix_metadata"
     version: ClassVar[float] = 1.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -218,7 +228,9 @@ class SqwPixWrap(ir.Serializable):
     n_rows: int = 9
     n_pixels: int
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "n_rows": ir.U32(self.n_rows),
             "n_pixels": ir.U64(self.n_pixels),
@@ -234,7 +246,9 @@ class SqwIXSource(ir.Serializable):
     serial_name: ClassVar[str] = "IX_source"
     version: ClassVar[float] = 2.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -252,7 +266,9 @@ class SqwIXNullInstrument(ir.Serializable):
     serial_name: ClassVar[str] = "IX_null_inst"
     version: ClassVar[float] = 2.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -275,7 +291,9 @@ class SqwIXSample(ir.Serializable):
     serial_name: ClassVar[str] = "IX_samp"
     version: ClassVar[float] = 0.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -307,7 +325,9 @@ class SqwIXExperiment(ir.Serializable):
     serial_name: ClassVar[str] = "IX_experiment"
     version: ClassVar[float] = 3.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         en = (
             self.en.to(unit='meV', dtype='float64', copy=False)
             .broadcast(sizes={'_': 1, 'energy_transfer': self.en.shape[0]})
@@ -342,7 +362,9 @@ class SqwMultiIXExperiment(ir.Serializable):
     serial_name: ClassVar[str] = "IX_experiment"
     version: ClassVar[float] = 3.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -362,7 +384,9 @@ class UniqueRefContainer(ir.Serializable):
     serial_name: ClassVar[str] = "unique_references_container"
     version: ClassVar[float] = 1.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -381,7 +405,9 @@ class UniqueObjContainer(ir.Serializable):
     serial_name: ClassVar[str] = "unique_objects_container"
     version: ClassVar[float] = 1.0
 
-    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+    def _serialize_to_dict(
+        self,
+    ) -> dict[str, ir.Object | ir.ObjectArray | ir.CellArray]:
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
@@ -400,7 +426,7 @@ class UniqueObjContainer(ir.Serializable):
 
 
 def _angle_value(x: sc.Variable) -> float:
-    return x.to(unit='rad', dtype='float64', copy=False).value
+    return x.to(unit='rad', dtype='float64', copy=False).value  # type: ignore[no-any-return]
 
 
 def _serialize_str_array(strings: list[str]) -> ir.CellArray:
@@ -414,10 +440,10 @@ def _serialize_str_array(strings: list[str]) -> ir.CellArray:
 
 
 def _serialize_multi_unit_array(data: list[sc.Variable], units: list[str]) -> ir.Array:
-    data = np.stack(
+    stacked = np.stack(
         [d.to(unit=u, dtype='float64').values for d, u in zip(data, units, strict=True)]
     )
-    return ir.Array(data, ty=ir.TypeTag.f64)
+    return ir.Array(stacked, ty=ir.TypeTag.f64)
 
 
 def _variable_to_float_array(var: sc.Variable, unit: str | None) -> ir.Array:

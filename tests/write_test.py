@@ -102,7 +102,7 @@ def test_create_writes_main_header(
 
     with Sqw.open(buffer) as sqw:
         main_header = sqw.read_data_block(("", "main_header"))
-    assert main_header.full_filename == ""  # because we use a buffer
+    assert main_header.full_filename == "in_memory"  # because we use a buffer
     assert main_header.title == "my title"
     assert main_header.nfiles == 0
     assert (main_header.creation_date - datetime.now(tz=timezone.utc)) < timedelta(
@@ -123,7 +123,7 @@ def test_register_pixel_data_writes_pix_metadata(
 
     with Sqw.open(buffer) as sqw:
         pix_metadata = sqw.read_data_block(("pix", "metadata"))
-    assert pix_metadata.full_filename == ""  # because we use a buffer
+    assert pix_metadata.full_filename == "in_memory"  # because we use a buffer
     assert pix_metadata.npix == 13
     assert pix_metadata.data_range.shape == (9, 2)
 

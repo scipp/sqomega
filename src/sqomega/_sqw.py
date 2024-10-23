@@ -174,10 +174,10 @@ def _normalize_data_block_name(
     name: DataBlockName | str, level2_name: str | None
 ) -> DataBlockName:
     match (name, level2_name):
-        case (_, _) as n, None:
-            return n
+        case (str(n1), str(n2)), None:
+            return DataBlockName((n1, n2))  # type: ignore[no-any-return, operator]
         case str(n1), str(n2):
-            return DataBlockName((n1, n2))
+            return DataBlockName((n1, n2))  # type: ignore[no-any-return, operator]
     raise TypeError(
         "Data block name must be given either as a tuple of two strings or two"
         f"separate strings. Got {name!r} and {level2_name!r}."
@@ -251,8 +251,8 @@ def _get_scalar_struct_field(struct: ir.Struct, name: str) -> Any:
     shape = field.shape[1:] if field.ty == ir.TypeTag.char else field.shape
     if shape not in ((1,), ()):
         raise AbortParse(f"Field '{name}' has non-scalar shape: {shape}")
-    if isinstance(field.data[0], ir.Struct):
-        raise AbortParse(f"Field '{name}' contains a nested struct")
+    if isinstance(field.data[0], ir.Struct | ir.ObjectArray | ir.CellArray):
+        raise AbortParse(f"Field '{name}' contains a nested struct or cell array")
     return field.data[0].value
 
 
@@ -260,7 +260,7 @@ def _unpack_cell_array(cell_array: ir.CellArray) -> list[Any]:
     # This does not support general cell arrays.
     # It is specialized for 1d cell arrays of strings.
     data = (obj.data for obj in cell_array.data)
-    return [d[0].value if len(d) == 1 else [x.value for x in d] for d in data]
+    return [d[0].value if len(d) == 1 else [x.value for x in d] for d in data]  # type: ignore[union-attr]
 
 
 def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
@@ -275,8 +275,8 @@ def _parse_main_header_cl_2_0(struct: ir.Struct) -> SqwMainHeader:
 def _parse_dnd_metadata_1_0(struct: ir.Struct) -> SqwDndMetadata:
     (axes_struct,) = _get_struct_field(struct, "axes").data
     (proj_struct,) = _get_struct_field(struct, "proj").data
-    proj, units = _parse_line_proj_7_0(proj_struct)
-    axes = _parse_line_axes_7_0(axes_struct, units)
+    proj, units = _parse_line_proj_7_0(proj_struct)  # type: ignore[arg-type]
+    axes = _parse_line_axes_7_0(axes_struct, units)  # type: ignore[arg-type]
     return SqwDndMetadata(
         axes=axes,
         proj=proj,
