@@ -296,7 +296,7 @@ def _parse_line_axes_7_0(struct: ir.Struct, units: list[str]) -> SqwLineAxes:
         img_range=_parse_2d_multi_unit_array(
             'range', _get_struct_field(struct, "img_range").data, units
         ),
-        nbins_all_dims=sc.array(
+        n_bins_all_dims=sc.array(
             dims=('axis',),
             values=_get_struct_field(struct, "nbins_all_dims").data,
             dtype='int64',
@@ -312,7 +312,7 @@ def _parse_line_axes_7_0(struct: ir.Struct, units: list[str]) -> SqwLineAxes:
         dax=sc.array(
             dims=('axis',),
             # -1 to convert to 0-based indexing
-            values=_get_struct_field(struct, "dax").data - 1,
+            values=_get_struct_field(struct, "dax").data.astype(int) - 1,
             unit=None,
         ),
         offset=_parse_1d_multi_unit_array(

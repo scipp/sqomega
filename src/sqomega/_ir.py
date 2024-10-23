@@ -131,7 +131,7 @@ class Serializable(ABC):
             ),
         )
 
-    def prepare_for_serialization(self: _T) -> _T:  # noqa: PYI019
+    def prepare_for_serialization(self: _T, filename: str, filepath: str) -> _T:  # noqa: PYI019
         return self
 
 

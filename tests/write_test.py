@@ -7,11 +7,20 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from typing import Literal
 
+import numpy as np
 import pytest
 import scipp as sc
 import scipp.testing
 
-from sqomega import Byteorder, EnergyMode, Sqw, SqwIXExperiment
+from sqomega import (
+    Byteorder,
+    EnergyMode,
+    Sqw,
+    SqwDndMetadata,
+    SqwIXExperiment,
+    SqwLineAxes,
+    SqwLineProj,
+)
 
 
 def test_create_sets_byteorder_native() -> None:
@@ -206,3 +215,125 @@ def test_writes_expdata(
             sc.testing.assert_identical(
                 getattr(loaded, field.name), getattr(expected, field.name)
             )
+
+
+@pytest.mark.parametrize("byteorder", ["native", "little", "big"])
+def test_writes_data_metadata(
+    byteorder: Literal["native", "little", "big"],
+) -> None:
+    metadata = SqwDndMetadata(
+        axes=SqwLineAxes(
+            title="test axes",
+            label=["x", "y", "z", "dE"],
+            img_scales=[
+                1.0 / sc.Unit('angstrom'),
+                2.0 / sc.Unit('2*angstrom'),
+                0.5 / sc.Unit('kilo angstrom'),
+                0.2 * sc.Unit('eV'),
+            ],
+            img_range=[
+                sc.array(dims=['range'], values=[-30.0, 540.0], unit='1/(k angstrom)'),
+                sc.array(dims=['range'], values=[-0.5, 6.7], unit='1/angstrom'),
+                sc.array(dims=['range'], values=[-5.6, -2.4], unit='10/angstrom'),
+                sc.array(dims=['range'], values=[6.0, 9.1], unit='meV'),
+            ],
+            n_bins_all_dims=sc.array(dims=['axis'], values=[40, 50, 40, 40], unit=None),
+            single_bin_defines_iax=sc.array(
+                dims=['axis'], values=[False, True, True, True]
+            ),
+            dax=sc.array(dims=['axis'], values=[2, 1, 0, 3], unit=None),
+            offset=[
+                1.0 / sc.Unit('2*angstrom'),
+                50.0 / sc.Unit('milli angstrom'),
+                0.0 / sc.Unit('angstrom'),
+                0.0 * sc.Unit('meV'),
+            ],
+            changes_aspect_ratio=True,
+        ),
+        proj=SqwLineProj(
+            lattice_spacing=sc.vector([2.1, 2.1, 2.5], unit='1/angstrom'),
+            lattice_angle=sc.vector([np.pi / 2, np.pi / 4, np.pi / 2], unit='rad'),
+            offset=[
+                1.0 / sc.Unit('2*angstrom'),
+                50.0 / sc.Unit('milli angstrom'),
+                0.0 / sc.Unit('angstrom'),
+                0.0 * sc.Unit('meV'),
+            ],
+            title='my projection',
+            label=["x", "y", "z", "dE"],
+            u=sc.vector([0.0, 1.0, 0.0], unit='1/angstrom'),
+            v=sc.vector([1.0, 0.0, 0.0], unit='1/(milli angstrom)'),
+            w=None,
+            non_orthogonal=False,
+            type='aaa',
+        ),
+    )
+    # The same as above but with canonical units.
+    expected_metadata = SqwDndMetadata(
+        axes=SqwLineAxes(
+            title="test axes",
+            label=["x", "y", "z", "dE"],
+            img_scales=[
+                1.0 / sc.Unit('angstrom'),
+                1.0 / sc.Unit('angstrom'),
+                0.0005 / sc.Unit('angstrom'),
+                200.0 * sc.Unit('meV'),
+            ],
+            img_range=[
+                sc.array(dims=['range'], values=[-0.03, 0.540], unit='1/angstrom'),
+                sc.array(dims=['range'], values=[-0.5, 6.7], unit='1/angstrom'),
+                sc.array(dims=['range'], values=[-56.0, -24.0], unit='1/angstrom'),
+                sc.array(dims=['range'], values=[6.0, 9.1], unit='meV'),
+            ],
+            n_bins_all_dims=sc.array(dims=['axis'], values=[40, 50, 40, 40], unit=None),
+            single_bin_defines_iax=sc.array(
+                dims=['axis'], values=[False, True, True, True]
+            ),
+            dax=sc.array(dims=['axis'], values=[2, 1, 0, 3], unit=None),
+            offset=[
+                0.5 / sc.Unit('angstrom'),
+                50000.0 / sc.Unit('angstrom'),
+                0.0 / sc.Unit('angstrom'),
+                0.0 * sc.Unit('meV'),
+            ],
+            changes_aspect_ratio=True,
+        ),
+        proj=SqwLineProj(
+            lattice_spacing=sc.vector([2.1, 2.1, 2.5], unit='1/angstrom'),
+            lattice_angle=sc.vector([90.0, 45.0, 90.0], unit='deg'),
+            offset=[
+                0.5 / sc.Unit('angstrom'),
+                50000.0 / sc.Unit('angstrom'),
+                0.0 / sc.Unit('angstrom'),
+                0.0 * sc.Unit('meV'),
+            ],
+            title='my projection',
+            label=["x", "y", "z", "dE"],
+            u=sc.vector([0.0, 1.0, 0.0], unit='1/angstrom'),
+            v=sc.vector([1000.0, 0.0, 0.0], unit='1/angstrom'),
+            w=None,
+            non_orthogonal=False,
+            type='aaa',
+        ),
+    )
+
+    buffer = BytesIO()
+    builder = Sqw.build(buffer, byteorder=byteorder)
+    builder = builder.add_dnd_metadata(metadata)
+    with builder.create():
+        pass
+    buffer.seek(0)
+
+    with Sqw.open(buffer) as sqw:
+        loaded_metadata = sqw.read_data_block(("data", "metadata"))
+
+    loaded_axes = loaded_metadata.axes
+    expected_axes = expected_metadata.axes
+    for field in dataclasses.fields(loaded_axes):
+        loaded = getattr(loaded_axes, field.name)
+        expected = getattr(expected_axes, field.name)
+        if isinstance(loaded, list):
+            for a, b in zip(loaded, expected, strict=True):
+                sc.testing.assert_identical(a, b)
+        else:
+            sc.testing.assert_identical(loaded, expected)

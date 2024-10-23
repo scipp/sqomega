@@ -22,6 +22,7 @@ from ._models import (
     DataBlockName,
     SqwDataBlockDescriptor,
     SqwDataBlockType,
+    SqwDndMetadata,
     SqwFileHeader,
     SqwFileType,
     SqwIXExperiment,
@@ -140,6 +141,10 @@ class SqwBuilder:
         )
         return self
 
+    def add_dnd_metadata(self, block: SqwDndMetadata) -> SqwBuilder:
+        self._data_blocks[("data", "metadata")] = block
+        return self
+
     def _make_file_header(self) -> SqwFileHeader:
         return SqwFileHeader(
             prog_name="horace",
@@ -188,8 +193,9 @@ class SqwBuilder:
         return buffers, descriptors
 
     def _prepare_data_blocks(self) -> dict[DataBlockName, Any]:
+        filepath, filename = self._filepath_and_name
         return {
-            key: block.prepare_for_serialization()
+            key: block.prepare_for_serialization(filepath=filepath, filename=filename)
             for key, block in self._data_blocks.items()
         }
 
@@ -235,6 +241,12 @@ class SqwBuilder:
     @property
     def _full_filename(self) -> str:
         return os.fspath(self._stored_path or "")
+
+    @property
+    def _filepath_and_name(self) -> tuple[str, str]:
+        if self._stored_path is None:
+            return '', ''
+        return os.fspath(self._stored_path.parent), self._stored_path.name
 
 
 def _write_file_header(sqw_io: LowLevelSqw, file_header: SqwFileHeader) -> None:

@@ -20,6 +20,9 @@ from ._models import (
     SqwMainHeader,
     EnergyMode,
     SqwIXExperiment,
+    SqwDndMetadata,
+    SqwLineAxes,
+    SqwLineProj,
 )
 
 __all__ = [
@@ -31,4 +34,7 @@ __all__ = [
     "SqwBuilder",
     "SqwFileType",
     "SqwFileHeader",
+    "SqwDndMetadata",
+    "SqwLineAxes",
+    "SqwLineProj",
 ]
