@@ -235,7 +235,13 @@ class SqwIXSource(ir.Serializable):
     version: ClassVar[float] = 2.0
 
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
-        raise NotImplementedError()
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "name": ir.String(self.name),
+            "target_name": ir.String(self.target_name),
+            "frequency": ir.F64(self.frequency.value),  # TODO unit
+        }
 
 
 @dataclass(kw_only=True, slots=True)
@@ -247,7 +253,12 @@ class SqwIXNullInstrument(ir.Serializable):
     version: ClassVar[float] = 2.0
 
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
-        raise NotImplementedError()
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "name": ir.String(self.name),
+            "source": self.source.serialize_to_ir(),
+        }
 
 
 class EnergyMode(enum.Enum):
@@ -265,7 +276,13 @@ class SqwIXSample(ir.Serializable):
     version: ClassVar[float] = 0.0
 
     def _serialize_to_dict(self) -> dict[str, ir.Object]:
-        raise NotImplementedError()
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "alatt": _variable_to_float_array(self.lattice_spacing, "1/angstrom"),
+            "angdeg": _variable_to_float_array(self.lattice_angle, "deg"),
+            "name": ir.String(self.name),
+        }
 
 
 # In contrast to SQW files, this model contains the nested
@@ -333,6 +350,51 @@ class SqwMultiIXExperiment(ir.Serializable):
                 ty=ir.TypeTag.struct,
                 shape=(len(self.array_dat),),
                 data=[exp.serialize_to_ir() for exp in self.array_dat],
+            ),
+        }
+
+
+@dataclass(kw_only=True, slots=True)
+class UniqueRefContainer(ir.Serializable):
+    global_name: str
+    objects: UniqueObjContainer
+
+    serial_name: ClassVar[str] = "unique_references_container"
+    version: ClassVar[float] = 1.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "stored_baseclass": ir.String(self.objects.baseclass),
+            "global_name": ir.String(self.global_name),
+            "unique_objects": self.objects.serialize_to_ir().to_object_array(),
+        }
+
+
+@dataclass(kw_only=True, slots=True)
+class UniqueObjContainer(ir.Serializable):
+    baseclass: str
+    objects: list[ir.Serializable]
+    indices: list[int]
+
+    serial_name: ClassVar[str] = "unique_objects_container"
+    version: ClassVar[float] = 1.0
+
+    def _serialize_to_dict(self) -> dict[str, ir.Object]:
+        return {
+            "serial_name": ir.String(self.serial_name),
+            "version": ir.F64(self.version),
+            "baseclass": ir.String(self.baseclass),
+            "unique_objects": ir.CellArray(
+                shape=(len(self.objects),),
+                data=[obj.serialize_to_ir().to_object_array() for obj in self.objects],
+            ),
+            "idx": ir.ObjectArray(
+                shape=(len(self.indices),),
+                # +1 to convert to 1-based indexing
+                data=np.array(self.indices) + 1.0,
+                ty=ir.TypeTag.f64,
             ),
         }
 

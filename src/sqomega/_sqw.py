@@ -472,7 +472,10 @@ def _parse_unique_references_container_1_0(struct: ir.Struct) -> list[Any]:
 def _parse_unique_objects_container_1_0(struct: ir.Struct) -> list[Any]:
     objects = _get_struct_field(struct, "unique_objects").data
     idx = _get_struct_field(struct, "idx").data
+    if not isinstance(idx, np.ndarray):  # it is list[ir.F64]
+        idx = np.array([i.value for i in idx])
     parsed_objects = [_try_parse_block(obj) for obj in objects]
+    # -1 to convert to 0-based index
     return [parsed_objects[int(i) - 1] for i in idx]
 
 

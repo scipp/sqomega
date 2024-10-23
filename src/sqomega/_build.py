@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, BinaryIO
 
 import numpy as np
 
+from . import _ir as ir
 from ._bytes import Byteorder
 from ._files import open_binary
 from ._low_level_io import LowLevelSqw
@@ -26,9 +27,13 @@ from ._models import (
     SqwFileHeader,
     SqwFileType,
     SqwIXExperiment,
+    SqwIXNullInstrument,
+    SqwIXSample,
     SqwMainHeader,
     SqwMultiIXExperiment,
     SqwPixelMetadata,
+    UniqueObjContainer,
+    UniqueRefContainer,
 )
 from ._read_write import write_object_array
 
@@ -68,6 +73,7 @@ class SqwBuilder:
         main_header = SqwMainHeader(
             full_filename=self._full_filename,
             title=title,
+            # To be replaced when registering pixel data.
             nfiles=0,
             # To be replaced when writing the file.
             creation_date=datetime(1, 1, 1, tzinfo=timezone.utc),
@@ -77,7 +83,8 @@ class SqwBuilder:
         }
 
         self._pix_placeholder: _PixPlaceholder | None = None
-        self._expdata: list[SqwIXExperiment] = []
+        self._instrument: SqwIXNullInstrument | None = None
+        self._sample: SqwIXSample | None = None
 
     @contextmanager
     def create(self) -> Generator[Sqw, None, None]:
@@ -126,9 +133,8 @@ class SqwBuilder:
             raise RuntimeError("SQW builder already has pixel data")
         self._n_dim = n_dims
 
-        self._expdata = experiments
         self._data_blocks[('experiment_info', 'expdata')] = SqwMultiIXExperiment(
-            self._expdata
+            experiments
         )
         self._data_blocks[("pix", "metadata")] = SqwPixelMetadata(
             full_filename=self._full_filename,
@@ -139,10 +145,19 @@ class SqwBuilder:
             n_pixels=n_pixels,
             rows=rows,
         )
+        self._data_blocks[('', 'main_header')].nfiles = len(experiments)
         return self
 
     def add_dnd_metadata(self, block: SqwDndMetadata) -> SqwBuilder:
         self._data_blocks[("data", "metadata")] = block
+        return self
+
+    def add_default_instrument(self, instrument: SqwIXNullInstrument) -> SqwBuilder:
+        self._instrument = instrument
+        return self
+
+    def add_default_sample(self, sample: SqwIXSample) -> SqwBuilder:
+        self._sample = sample
         return self
 
     def _make_file_header(self) -> SqwFileHeader:
@@ -194,10 +209,28 @@ class SqwBuilder:
 
     def _prepare_data_blocks(self) -> dict[DataBlockName, Any]:
         filepath, filename = self._filepath_and_name
-        return {
+        blocks = {
             key: block.prepare_for_serialization(filepath=filepath, filename=filename)
             for key, block in self._data_blocks.items()
         }
+
+        nfiles = blocks[('', 'main_header')].nfiles
+        if self._instrument is not None:
+            blocks[('experiment_info', 'instruments')] = _broadcast_unique_ref(
+                self._instrument,
+                n=nfiles,
+                baseclass="IX_inst",
+                global_name='GLOBAL_NAME_INSTRUMENTS_CONTAINER',
+            )
+        if self._sample is not None:
+            blocks[('experiment_info', 'samples')] = _broadcast_unique_ref(
+                self._sample,
+                n=nfiles,
+                baseclass="IX_samp",
+                global_name='GLOBAL_NAME_SAMPLES_CONTAINER',
+            )
+
+        return blocks
 
     def _serialize_block_allocation_table(
         self,
@@ -240,7 +273,7 @@ class SqwBuilder:
 
     @property
     def _full_filename(self) -> str:
-        return os.fspath(self._stored_path or "")
+        return os.fspath(self._stored_path or "in_memory")
 
     @property
     def _filepath_and_name(self) -> tuple[str, str]:
@@ -267,6 +300,22 @@ def _write_data_block_descriptor(
     sqw_io.write_u32(descriptor.size)
     sqw_io.write_u32(int(descriptor.locked))
     return pos
+
+
+def _broadcast_unique_ref(
+    obj: ir.Serializable,
+    n: int,
+    baseclass: str,
+    global_name: str,
+) -> UniqueRefContainer:
+    return UniqueRefContainer(
+        global_name=global_name,
+        objects=UniqueObjContainer(
+            baseclass=baseclass,
+            objects=[obj],
+            indices=[0] * n,
+        ),
+    )
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
