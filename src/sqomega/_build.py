@@ -90,7 +90,7 @@ class SqwBuilder:
     def create(self) -> Generator[Sqw, None, None]:
         from ._sqw import Sqw
 
-        with open_binary(self._path, "wb") as f:
+        with open_binary(self._path, "r+b") as f:
             sqw_io = LowLevelSqw(
                 f,
                 path=self._stored_path,
@@ -121,7 +121,11 @@ class SqwBuilder:
                             f"Unsupported data block type: {descriptor.block_type}"
                         )
 
-            yield Sqw(sqw_io=sqw_io, file_header=file_header, block_allocation_table={})
+            yield Sqw(
+                sqw_io=sqw_io,
+                file_header=file_header,
+                block_allocation_table=block_descriptors,
+            )
 
     def register_pixel_data(
         self,

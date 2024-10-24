@@ -8,7 +8,7 @@ from typing import BinaryIO, Literal
 
 
 def open_binary(
-    path: str | PathLike[str] | BytesIO | BinaryIO, mode: Literal["rb", "wb"]
+    path: str | PathLike[str] | BytesIO | BinaryIO, mode: Literal["rb", "wb", "r+b"]
 ) -> AbstractContextManager[BinaryIO]:
     """Open a binary file at a path or return an already open file."""
     if isinstance(path, BytesIO | BinaryIO):
