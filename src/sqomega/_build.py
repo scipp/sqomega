@@ -82,6 +82,7 @@ class SqwBuilder:
             ("", "main_header"): main_header,
         }
 
+        self._dnd_placeholder: _DndPlaceholder | None = None
         self._pix_placeholder: _PixPlaceholder | None = None
         self._instrument: SqwIXNullInstrument | None = None
         self._sample: SqwIXSample | None = None
@@ -115,6 +116,10 @@ class SqwBuilder:
                     case SqwDataBlockType.pix:
                         # Type guaranteed by _serialize_data_blocks
                         self._pix_placeholder.write(sqw_io)  # type: ignore[union-attr]
+                        sqw_io.seek(descriptor.position + descriptor.size)
+                    case SqwDataBlockType.dnd:
+                        # Type guaranteed by _serialize_data_blocks
+                        self._dnd_placeholder.write(sqw_io)  # type: ignore[union-attr]
                         sqw_io.seek(descriptor.position + descriptor.size)
                     case _:
                         raise NotImplementedError(
@@ -169,6 +174,10 @@ class SqwBuilder:
         self._data_blocks[("data", "metadata")] = block
         return self
 
+    def add_empty_dnd_data(self) -> SqwBuilder:
+        self._dnd_placeholder = _DndPlaceholder(shape=())
+        return self
+
     def add_default_instrument(self, instrument: SqwIXNullInstrument) -> SqwBuilder:
         self._instrument = instrument
         return self
@@ -209,6 +218,16 @@ class SqwBuilder:
                 name=name,
                 position=0,
                 size=len(buf),
+                locked=False,
+            )
+
+        if self._dnd_placeholder is not None:
+            buffers[('data', 'nd_data')] = None
+            descriptors[('data', 'nd_data')] = SqwDataBlockDescriptor(
+                block_type=SqwDataBlockType.dnd,
+                name=('data', 'nd_data'),
+                position=0,
+                size=4,
                 locked=False,
             )
 
@@ -333,6 +352,16 @@ def _broadcast_unique_ref(
             indices=[0] * n,
         ),
     )
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class _DndPlaceholder:
+    shape: tuple[int, ...]
+
+    def write(self, sqw_io: LowLevelSqw) -> None:
+        if self.shape:
+            raise NotImplementedError("Only empty DND data is implemented")
+        sqw_io.write_u32(0)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
