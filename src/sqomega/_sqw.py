@@ -114,6 +114,8 @@ class Sqw:
                 return _parse_block(read_object_array(self._sqw_io))
             case SqwDataBlockType.pix:
                 return _read_pix_block(self._sqw_io)
+            case SqwDataBlockType.dnd:
+                return _read_dnd_block(self._sqw_io)
             case _:
                 raise NotImplementedError(
                     f"Unsupported data block type: {block_descriptor.block_type}"
@@ -547,3 +549,12 @@ def _read_pix_block(sqw_io: LowLevelSqw) -> npt.NDArray[np.float32]:
     n_rows = sqw_io.read_u32()
     n_pixels = sqw_io.read_u64()
     return sqw_io.read_array((n_rows, n_pixels), np.dtype("float32"))
+
+
+def _read_dnd_block(sqw_io: LowLevelSqw):
+    # like metadata.axes.n_bins_all_dims?
+    n_dims = sqw_io.read_u32()  # u32 not u8 as normal
+    shape = tuple(sqw_io.read_u32() for _ in range(n_dims))
+    # TODO why 6?
+    images = [sqw_io.read_array(shape, np.dtype("float32")) for _ in range(6)]
+    return images

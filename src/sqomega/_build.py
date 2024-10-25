@@ -227,7 +227,7 @@ class SqwBuilder:
                 block_type=SqwDataBlockType.dnd,
                 name=('data', 'nd_data'),
                 position=0,
-                size=4,
+                size=self._dnd_placeholder.size(),
                 locked=False,
             )
 
@@ -237,7 +237,7 @@ class SqwBuilder:
                 block_type=SqwDataBlockType.pix,
                 name=('pix', 'data_wrap'),
                 position=0,
-                size=4 + 8 + self._pix_placeholder.pix_array_size(),
+                size=self._pix_placeholder.size(),
                 locked=False,
             )
 
@@ -266,7 +266,7 @@ class SqwBuilder:
                 global_name='GLOBAL_NAME_SAMPLES_CONTAINER',
             )
 
-        return blocks
+        return _to_canonical_block_order(blocks)
 
     def _serialize_block_allocation_table(
         self,
@@ -354,14 +354,39 @@ def _broadcast_unique_ref(
     )
 
 
+def _to_canonical_block_order(
+    blocks: dict[DataBlockName, Any],
+) -> dict[DataBlockName, Any]:
+    order = (
+        ('', 'main_header'),
+        ('', 'detpar'),
+        ('data', 'metadata'),
+        ('data', 'nd_data'),
+        ('experiment_info', 'instruments'),
+        ('experiment_info', 'samples'),
+        ('experiment_info', 'expdata'),
+        ('pix', 'metadata'),
+        ('pix', 'data_wrap'),
+    )
+    blocks = dict(blocks)
+    out = {name: block for name in order if (block := blocks.get(name)) is not None}
+    out.update(blocks)  # append remaining blocks if any
+    return out
+
+
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class _DndPlaceholder:
     shape: tuple[int, ...]
 
+    def size(self) -> int:
+        return 4 + 4 * len(self.shape) + 4 * int(np.prod(self.shape))
+
     def write(self, sqw_io: LowLevelSqw) -> None:
-        if self.shape:
-            raise NotImplementedError("Only empty DND data is implemented")
-        sqw_io.write_u32(0)
+        sqw_io.write_u32(len(self.shape))
+        for s in self.shape:
+            sqw_io.write_u32(s)
+        for _ in range(6):
+            sqw_io.write_array(np.zeros(self.shape, dtype='float32'))
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -369,9 +394,9 @@ class _PixPlaceholder:
     n_pixels: int
     rows: tuple[str, ...]
 
-    def pix_array_size(self) -> int:
+    def size(self) -> int:
         # *4 for f32
-        return self.n_pixels * len(self.rows) * 4
+        return 4 + 8 + self.n_pixels * len(self.rows) * 4
 
     def write(self, sqw_io: LowLevelSqw) -> None:
         sqw_io.write_u32(len(self.rows))
