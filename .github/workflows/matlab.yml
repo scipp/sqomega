@@ -1,0 +1,28 @@
+name: Matlab-test
+
+on:
+  push:
+    branches:
+      - main
+      - release
+  pull_request:
+
+jobs:
+  try-matlab:
+    strategy:
+      matrix:
+        os: ['ubuntu-22.04']
+        python:
+          - version: '${{needs.formatting.outputs.min_python}}'
+            tox-env: '${{needs.formatting.outputs.min_tox_env}}'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2023b
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python.version }}
+      - run: pip install pace_neutrons
+      - run: python -c 'from pace_neutrons import Matlab; m = Matlab(); print(m)'
