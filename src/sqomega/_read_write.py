@@ -52,6 +52,7 @@ def read_object_array(sqw_io: LowLevelSqw) -> ir.ObjectArray | ir.CellArray:
     position = sqw_io.position
     ty = ir.TypeTag(sqw_io.read_u8())
     if ty == ir.TypeTag.serializable:  # TODO
+        # raise RuntimeError(f'!!!! {ty.value} {sqw_io.position-1}')
         # This type object does not encode a shape, so just attempt
         # to read its contents.
         return read_object_array(sqw_io)
@@ -68,6 +69,17 @@ def write_object_array(
     sqw_io: LowLevelSqw, objects: ir.ObjectArray | ir.CellArray
 ) -> None:
     position = sqw_io.position
+
+    if objects.ty == ir.TypeTag.struct:
+        structs = objects.data
+        if len(structs) == 1:
+            from ._sqw import _get_scalar_struct_field
+            name = _get_scalar_struct_field(structs[0], 'serial_name')
+            if name.startswith('IX_'):
+                print('adding 32 at ', sqw_io.position)
+                sqw_io.write_u8(32)
+
+
     sqw_io.write_u8(objects.ty.value)
     sqw_io.write_u8(len(objects.shape))  # TODO correct for list of structs?
     for size in objects.shape:

@@ -204,8 +204,11 @@ def _read_block_allocation_table(
     sqw_io: LowLevelSqw,
 ) -> dict[DataBlockName, SqwDataBlockDescriptor]:
     _bat_size = sqw_io.read_u32()  # don't need this
+    print(sqw_io.position, _bat_size, sqw_io.position + _bat_size)
     n_blocks = sqw_io.read_u32()
     descriptors = (_read_data_block_descriptor(sqw_io) for _ in range(n_blocks))
+    descriptors = list(descriptors)
+    print(sqw_io.position)
     return {descriptor.name: descriptor for descriptor in descriptors}
 
 
@@ -555,6 +558,7 @@ def _read_dnd_block(sqw_io: LowLevelSqw):
     # like metadata.axes.n_bins_all_dims?
     n_dims = sqw_io.read_u32()  # u32 not u8 as normal
     shape = tuple(sqw_io.read_u32() for _ in range(n_dims))
-    # TODO why 6?
-    images = [sqw_io.read_array(shape, np.dtype("float32")) for _ in range(6)]
-    return images
+    values = sqw_io.read_array(shape, np.dtype("float64"))
+    errors = sqw_io.read_array(shape, np.dtype("float64"))
+    counts = sqw_io.read_array(shape, np.dtype("uint64"))
+    return [values, errors, counts] # TODO order in file?

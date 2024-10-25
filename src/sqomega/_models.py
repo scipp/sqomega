@@ -272,8 +272,8 @@ class SqwIXNullInstrument(ir.Serializable):
         return {
             "serial_name": ir.String(self.serial_name),
             "version": ir.F64(self.version),
-            "name": ir.String(self.name),
             "source": self.source.serialize_to_ir(),
+            "name": ir.String(self.name),
         }
 
 

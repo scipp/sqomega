@@ -175,7 +175,7 @@ class SqwBuilder:
         return self
 
     def add_empty_dnd_data(self) -> SqwBuilder:
-        self._dnd_placeholder = _DndPlaceholder(shape=())
+        self._dnd_placeholder = _DndPlaceholder(shape=(50, 50, 50, 50))
         return self
 
     def add_default_instrument(self, instrument: SqwIXNullInstrument) -> SqwBuilder:
@@ -283,8 +283,8 @@ class SqwBuilder:
         buffer = BytesIO()
         sqw_io = LowLevelSqw(buffer, path=self._stored_path, byteorder=self._byteorder)
         sqw_io.write_u32(0)  # Size of BAT in bytes, filled in below.
-        sqw_io.write_u32(len(block_descriptors))
         bat_begin = sqw_io.position
+        sqw_io.write_u32(len(block_descriptors))
         # Offsets are relative to the local sqw_io.
         position_offsets = {
             name: _write_data_block_descriptor(sqw_io, descriptor)
@@ -385,8 +385,10 @@ class _DndPlaceholder:
         sqw_io.write_u32(len(self.shape))
         for s in self.shape:
             sqw_io.write_u32(s)
-        for _ in range(6):
-            sqw_io.write_array(np.zeros(self.shape, dtype='float32'))
+        zero = np.zeros(self.shape, dtype='float64')
+        sqw_io.write_array(zero)
+        sqw_io.write_array(zero)
+        sqw_io.write_array(np.zeros(self.shape, dtype='uint64'))
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
