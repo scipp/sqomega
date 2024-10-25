@@ -154,6 +154,17 @@ class SqwBuilder:
         self._data_blocks[('', 'main_header')].nfiles = len(experiments)
         return self
 
+    def add_empty_detector_params(self) -> SqwBuilder:
+        self._data_blocks[('', 'detpar')] = UniqueRefContainer(
+            global_name='GLOBAL_NAME_DETECTORS_CONTAINER',
+            objects=UniqueObjContainer(
+                baseclass='IX_detector_array',
+                objects=[],
+                indices=[],
+            ),
+        )
+        return self
+
     def add_dnd_metadata(self, block: SqwDndMetadata) -> SqwBuilder:
         self._data_blocks[("data", "metadata")] = block
         return self
