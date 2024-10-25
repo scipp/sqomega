@@ -144,7 +144,11 @@ def _serialize_field(
     if isinstance(field, Datetime):
         field = String(value=field.value.isoformat(timespec="seconds"))
     if isinstance(field, String):
-        return ObjectArray(ty=field.ty, shape=(len(field.value),) if field.value else (), data=[field])
+        # TODO do we need to set the shape to empty?
+        #  do we need to treat missing strings differently from empty strings?
+        return ObjectArray(
+            ty=field.ty, shape=(len(field.value),) if field.value else (), data=[field]
+        )
     if isinstance(field, Array):
         return ObjectArray(ty=field.ty, shape=field.value.shape[::-1], data=field.value)
     return ObjectArray(ty=field.ty, shape=(1,), data=[field])
