@@ -120,7 +120,6 @@ class SqwBuilder:
                     case SqwDataBlockType.dnd:
                         # Type guaranteed by _serialize_data_blocks
                         self._dnd_placeholder.write(sqw_io)  # type: ignore[union-attr]
-                        sqw_io.seek(descriptor.position + descriptor.size)
                     case _:
                         raise NotImplementedError(
                             f"Unsupported data block type: {descriptor.block_type}"
@@ -379,7 +378,8 @@ class _DndPlaceholder:
     shape: tuple[int, ...]
 
     def size(self) -> int:
-        return 4 + 4 * len(self.shape) + 4 * int(np.prod(self.shape))
+        n_elem = int(np.prod(self.shape))
+        return 4 + 4 * len(self.shape) + 3 * 8 * n_elem
 
     def write(self, sqw_io: LowLevelSqw) -> None:
         sqw_io.write_u32(len(self.shape))
