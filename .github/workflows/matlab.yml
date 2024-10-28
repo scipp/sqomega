@@ -22,6 +22,7 @@ jobs:
         with:
           release: R2023b
           cache: true
+          products: "MATLAB_Compiler_SDK"
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python.version }}
