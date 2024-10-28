@@ -74,11 +74,10 @@ def write_object_array(
         structs = objects.data
         if len(structs) == 1:
             from ._sqw import _get_scalar_struct_field
+
             name = _get_scalar_struct_field(structs[0], 'serial_name')
             if name.startswith('IX_'):
-                print('adding 32 at ', sqw_io.position)
                 sqw_io.write_u8(32)
-
 
     sqw_io.write_u8(objects.ty.value)
     sqw_io.write_u8(len(objects.shape))  # TODO correct for list of structs?

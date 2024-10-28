@@ -16,9 +16,9 @@ def matlab() -> Any:
 
 
 def test_load_empty_file(matlab: Any) -> None:
-    with Sqw.build("empty.sqw").create() as sqw:
+    with Sqw.build("empty.sqw").create():
         pass
 
     obj = matlab.read_horace("empty.sqw")
-    print(obj)
-    assert False
+    print(obj)  # noqa: T201
+    pytest.fail("Not implemented")
