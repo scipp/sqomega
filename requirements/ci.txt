@@ -44,9 +44,15 @@ requests==2.32.3
     # via -r ci.in
 smmap==5.0.1
     # via gitdb
-tox==4.21.2
+tomli==2.0.2
+    # via
+    #   pyproject-api
+    #   tox
+tox==4.23.2
     # via -r ci.in
+typing-extensions==4.12.2
+    # via tox
 urllib3==2.2.3
     # via requests
-virtualenv==20.26.6
+virtualenv==20.27.0
     # via tox
