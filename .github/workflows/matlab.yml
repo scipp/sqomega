@@ -13,8 +13,7 @@ jobs:
       matrix:
         os: ['ubuntu-22.04']
         python:
-          - version: '${{needs.formatting.outputs.min_python}}'
-            tox-env: '${{needs.formatting.outputs.min_tox_env}}'
+          - version: '3.10'
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up MATLAB
@@ -25,4 +24,4 @@ jobs:
         with:
           python-version: ${{ matrix.python.version }}
       - run: pip install pace_neutrons
-      - run: python -c 'from pace_neutrons import Matlab; m = Matlab(); print(m)'
+      - run: python test_horace.py
