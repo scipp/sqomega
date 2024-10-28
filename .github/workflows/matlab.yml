@@ -24,4 +24,6 @@ jobs:
         with:
           python-version: ${{ matrix.python.version }}
       - run: pip install pace_neutrons
+      - run: pwd
+      - run: ls
       - run: python test_horace.py
