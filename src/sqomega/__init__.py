@@ -23,6 +23,9 @@ from ._models import (
     SqwDndMetadata,
     SqwLineAxes,
     SqwLineProj,
+    SqwIXNullInstrument,
+    SqwIXSample,
+    SqwIXSource,
 )
 
 __all__ = [
@@ -37,4 +40,7 @@ __all__ = [
     "SqwDndMetadata",
     "SqwLineAxes",
     "SqwLineProj",
+    'SqwIXNullInstrument',
+    'SqwIXSample',
+    'SqwIXSource',
 ]
