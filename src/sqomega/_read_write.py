@@ -73,11 +73,15 @@ def write_object_array(
     if objects.ty == ir.TypeTag.struct:
         structs = objects.data
         if len(structs) == 1:
-            from ._sqw import _get_scalar_struct_field
+            from ._sqw import AbortParse, _get_scalar_struct_field
 
-            name = _get_scalar_struct_field(structs[0], 'serial_name')
-            if name.startswith('IX_'):
-                sqw_io.write_u8(32)
+            try:
+                # TODO use better mechanism
+                name = _get_scalar_struct_field(structs[0], 'serial_name')
+                if name.startswith('IX_'):
+                    sqw_io.write_u8(32)
+            except AbortParse:
+                pass
 
     sqw_io.write_u8(objects.ty.value)
     sqw_io.write_u8(len(objects.shape))  # TODO correct for list of structs?
