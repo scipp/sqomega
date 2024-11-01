@@ -173,13 +173,17 @@ class SqwBuilder:
         )
         return self
 
-    def add_dnd_metadata(self, block: SqwDndMetadata) -> SqwBuilder:
+    def _add_dnd_metadata(self, block: SqwDndMetadata) -> SqwBuilder:
         self._data_blocks[("data", "metadata")] = block
         return self
 
-    def add_empty_dnd_data(self) -> SqwBuilder:
-        self._dnd_placeholder = _DndPlaceholder(shape=(50, 50, 50, 50))
-        return self
+    def add_empty_dnd_data(self, block: SqwDndMetadata) -> SqwBuilder:
+        # The file must always contain a DND block
+        builder = self._add_dnd_metadata(block)
+        builder._dnd_placeholder = _DndPlaceholder(
+            shape=tuple(map(int, block.axes.n_bins_all_dims))
+        )
+        return builder
 
     def add_default_instrument(self, instrument: SqwIXNullInstrument) -> SqwBuilder:
         self._instrument = instrument
