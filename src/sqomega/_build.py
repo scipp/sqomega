@@ -91,6 +91,10 @@ class SqwBuilder:
     def create(self) -> Generator[Sqw, None, None]:
         from ._sqw import Sqw
 
+        # TODO better mechanism that doesn't use "r+"
+        if isinstance(self._stored_path, Path):
+            self._stored_path.touch()
+
         with open_binary(self._path, "r+b") as f:
             sqw_io = LowLevelSqw(
                 f,
