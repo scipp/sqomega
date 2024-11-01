@@ -339,7 +339,7 @@ class SqwIXExperiment(ir.Serializable):
         return {
             "filename": ir.String(self.filename),
             "filepath": ir.String(self.filepath),
-            "run_id": ir.F64(float(self.run_id)),
+            "run_id": ir.F64(float(self.run_id + 1)),
             "efix": ir.Array(efix.values, ty=ir.TypeTag.f64),
             "emode": ir.F64(float(self.emode.value)),
             "en": ir.Array(en, ty=ir.TypeTag.f64),

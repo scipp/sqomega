@@ -496,7 +496,7 @@ def _parse_single_ix_experiment_3_0(struct: ir.Struct) -> SqwIXExperiment:
     return SqwIXExperiment(
         filename=g("filename"),
         filepath=g("filepath"),
-        run_id=int(g("run_id")),
+        run_id=int(g("run_id")) - 1,
         efix=efix,
         emode=EnergyMode(g("emode")),
         en=sc.array(dims=['energy_transfer'], values=en, unit='meV'),
