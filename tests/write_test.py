@@ -257,6 +257,69 @@ def test_writes_expdata(
 
 
 @pytest.mark.parametrize("byteorder", ["native", "little", "big"])
+def test_writes_pixel_data(
+    byteorder: Literal["native", "little", "big"], buffer: _BytesBuffer | _PathBuffer
+) -> None:
+    experiment_template = SqwIXExperiment(
+        run_id=-1,
+        efix=sc.scalar(1.2, unit='meV'),
+        emode=EnergyMode.direct,
+        en=sc.array(dims=['energy_transfer'], values=[3.0], unit='meV'),
+        psi=sc.scalar(1.2, unit='rad'),
+        u=sc.vector([0.0, 1.0, 0.0]),
+        v=sc.vector([1.0, 1.0, 0.0]),
+        omega=sc.scalar(1.4, unit='rad'),
+        dpsi=sc.scalar(0.0, unit='rad'),
+        gl=sc.scalar(3, unit='rad'),
+        gs=sc.scalar(-0.5, unit='rad'),
+        filename="",
+        filepath='/data',
+    )
+    experiments = [
+        dataclasses.replace(experiment_template, run_id=0, filename="f1"),
+        dataclasses.replace(experiment_template, run_id=1, filename="f2"),
+    ]
+
+    n_pixels = 7
+    # Chosen numbers can all be represented in float32 to allow exact comparisons.
+    u1 = np.arange(n_pixels) + 0.0
+    u2 = np.arange(n_pixels) + 1.0
+    u3 = np.arange(n_pixels) + 3.0
+    u4 = np.arange(n_pixels) * 2
+    irun = np.full(n_pixels, 0)
+    idet = (np.arange(n_pixels) / 3).astype(int)
+    ien = np.full(n_pixels, 1)
+    values = 20 * np.arange(n_pixels)
+    variances = values / 2
+
+    builder = Sqw.build(buffer.get(), byteorder=byteorder)
+    builder = builder.register_pixel_data(
+        n_pixels=n_pixels * 2, n_dims=4, experiments=experiments
+    )
+    with builder.create() as sqw:
+        sqw.write_pixel_data(
+            np.c_[u1, u2, u3, u4, irun, idet, ien, values, variances], run=0
+        )
+        sqw.write_pixel_data(
+            np.c_[u1, u2, u3, u4, irun, idet, ien, values, variances] + 1000, run=1
+        )
+    buffer.rewind()
+
+    with Sqw.open(buffer.get()) as sqw:
+        loaded = sqw.read_data_block(("pix", "data_wrap"))
+
+    np.testing.assert_equal(loaded[:, 0], np.r_[u1, u1 + 1000])
+    np.testing.assert_equal(loaded[:, 1], np.r_[u2, u2 + 1000])
+    np.testing.assert_equal(loaded[:, 2], np.r_[u3, u3 + 1000])
+    np.testing.assert_equal(loaded[:, 3], np.r_[u4, u4 + 1000])
+    np.testing.assert_equal(loaded[:, 4], np.r_[irun, irun + 1000])
+    np.testing.assert_equal(loaded[:, 5], np.r_[idet, idet + 1000])
+    np.testing.assert_equal(loaded[:, 6], np.r_[ien, ien + 1000])
+    np.testing.assert_equal(loaded[:, 7], np.r_[values, values + 1000])
+    np.testing.assert_equal(loaded[:, 8], np.r_[variances, variances + 1000])
+
+
+@pytest.mark.parametrize("byteorder", ["native", "little", "big"])
 def test_writes_data_metadata(
     byteorder: Literal["native", "little", "big"], buffer: _BytesBuffer | _PathBuffer
 ) -> None:
