@@ -5,6 +5,7 @@ import dataclasses
 import sys
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -23,46 +24,84 @@ from sqomega import (
 )
 
 
-def test_create_sets_byteorder_native() -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer)
+class _PathBuffer:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def get(self) -> Path:
+        return self.path
+
+    def rewind(self) -> None:
+        pass
+
+    def read(self, n: int) -> bytes:
+        with self.path.open("rb") as file:
+            return file.read(n)
+
+
+class _BytesBuffer:
+    def __init__(self) -> None:
+        self.buffer = BytesIO()
+
+    def get(self) -> BytesIO:
+        return self.buffer
+
+    def rewind(self) -> None:
+        self.buffer.seek(0)
+
+    def read(self, n: int) -> bytes:
+        return self.buffer.read(n)
+
+
+@pytest.fixture(params=["BytesIO", "Path"])
+def buffer(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> _BytesBuffer | _PathBuffer:
+    match request.param:
+        case "BytesIO":
+            return _BytesBuffer()
+        case "Path":
+            return _PathBuffer(tmp_path / "sqw_file.sqw")
+
+
+def test_create_sets_byteorder_native(buffer: _BytesBuffer | _PathBuffer) -> None:
+    builder = Sqw.build(buffer.get())
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         assert sqw.byteorder.value == sys.byteorder
 
 
-def test_create_sets_byteorder_little() -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder="little")
+def test_create_sets_byteorder_little(buffer: _BytesBuffer | _PathBuffer) -> None:
+    builder = Sqw.build(buffer.get(), byteorder="little")
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         assert sqw.byteorder == Byteorder.little
 
 
-def test_create_sets_byteorder_big() -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder="big")
+def test_create_sets_byteorder_big(buffer: _BytesBuffer | _PathBuffer) -> None:
+    builder = Sqw.build(buffer.get(), byteorder="big")
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         assert sqw.byteorder == Byteorder.big
 
 
-def test_create_writes_file_header_little_endian() -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder="little")
+def test_create_writes_file_header_little_endian(
+    buffer: _BytesBuffer | _PathBuffer,
+) -> None:
+    builder = Sqw.build(buffer.get(), byteorder="little")
     with builder.create():
         pass
 
-    buffer.seek(0)
+    buffer.rewind()
     expected = (
         b"\x06\x00\x00\x00"
         b"horace"
@@ -73,13 +112,14 @@ def test_create_writes_file_header_little_endian() -> None:
     assert buffer.read(len(expected)) == expected
 
 
-def test_create_writes_file_header_big_endian() -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder="big")
+def test_create_writes_file_header_big_endian(
+    buffer: _BytesBuffer | _PathBuffer,
+) -> None:
+    builder = Sqw.build(buffer.get(), byteorder="big")
     with builder.create():
         pass
 
-    buffer.seek(0)
+    buffer.rewind()
     expected = (
         b"\x00\x00\x00\x06"
         b"horace"
@@ -92,17 +132,17 @@ def test_create_writes_file_header_big_endian() -> None:
 
 @pytest.mark.parametrize("byteorder", ["native", "little", "big"])
 def test_create_writes_main_header(
-    byteorder: Literal["native", "little", "big"],
+    byteorder: Literal["native", "little", "big"], buffer: _BytesBuffer | _PathBuffer
 ) -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, title="my title", byteorder=byteorder)
+    builder = Sqw.build(buffer.get(), title="my title", byteorder=byteorder)
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         main_header = sqw.read_data_block(("", "main_header"))
-    assert main_header.full_filename == "in_memory"  # because we use a buffer
+    filename = "in_memory" if isinstance(buffer, _BytesBuffer) else str(buffer.get())
+    assert main_header.full_filename == filename
     assert main_header.title == "my title"
     assert main_header.nfiles == 0
     assert (main_header.creation_date - datetime.now(tz=timezone.utc)) < timedelta(
@@ -112,25 +152,25 @@ def test_create_writes_main_header(
 
 @pytest.mark.parametrize("byteorder", ["native", "little", "big"])
 def test_register_pixel_data_writes_pix_metadata(
-    byteorder: Literal["native", "little", "big"],
+    byteorder: Literal["native", "little", "big"], buffer: _BytesBuffer | _PathBuffer
 ) -> None:
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder=byteorder)
+    builder = Sqw.build(buffer.get(), byteorder=byteorder)
     builder = builder.register_pixel_data(n_pixels=13, n_dims=3, experiments=[])
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         pix_metadata = sqw.read_data_block(("pix", "metadata"))
-    assert pix_metadata.full_filename == "in_memory"  # because we use a buffer
+    filename = "in_memory" if isinstance(buffer, _BytesBuffer) else str(buffer.get())
+    assert pix_metadata.full_filename == filename
     assert pix_metadata.npix == 13
     assert pix_metadata.data_range.shape == (9, 2)
 
 
 @pytest.mark.parametrize("byteorder", ["native", "little", "big"])
 def test_writes_expdata(
-    byteorder: Literal["native", "little", "big"],
+    byteorder: Literal["native", "little", "big"], buffer: _BytesBuffer | _PathBuffer
 ) -> None:
     experiments = [
         SqwIXExperiment(
@@ -198,16 +238,15 @@ def test_writes_expdata(
         ),
     ]
 
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder=byteorder)
+    builder = Sqw.build(buffer.get(), byteorder=byteorder)
     builder = builder.register_pixel_data(
         n_pixels=13, n_dims=3, experiments=experiments
     )
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         loaded_experiments = sqw.read_data_block(("experiment_info", "expdata"))
 
     for loaded, expected in zip(loaded_experiments, expected_experiments, strict=True):
@@ -219,7 +258,7 @@ def test_writes_expdata(
 
 @pytest.mark.parametrize("byteorder", ["native", "little", "big"])
 def test_writes_data_metadata(
-    byteorder: Literal["native", "little", "big"],
+    byteorder: Literal["native", "little", "big"], buffer: _BytesBuffer | _PathBuffer
 ) -> None:
     metadata = SqwDndMetadata(
         axes=SqwLineAxes(
@@ -297,6 +336,10 @@ def test_writes_data_metadata(
                 0.0 * sc.Unit('meV'),
             ],
             changes_aspect_ratio=True,
+            filename="" if isinstance(buffer, _BytesBuffer) else buffer.get().name,
+            filepath=""
+            if isinstance(buffer, _BytesBuffer)
+            else str(buffer.get().parent),
         ),
         proj=SqwLineProj(
             lattice_spacing=sc.vector([2.1, 2.1, 2.5], unit='1/angstrom'),
@@ -317,14 +360,13 @@ def test_writes_data_metadata(
         ),
     )
 
-    buffer = BytesIO()
-    builder = Sqw.build(buffer, byteorder=byteorder)
-    builder = builder.add_dnd_metadata(metadata)
+    builder = Sqw.build(buffer.get(), byteorder=byteorder)
+    builder = builder.add_empty_dnd_data(metadata)
     with builder.create():
         pass
-    buffer.seek(0)
+    buffer.rewind()
 
-    with Sqw.open(buffer) as sqw:
+    with Sqw.open(buffer.get()) as sqw:
         loaded_metadata = sqw.read_data_block(("data", "metadata"))
 
     loaded_axes = loaded_metadata.axes
