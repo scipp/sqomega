@@ -147,11 +147,12 @@ class Sqw:
             raise ValueError(
                 f"Bad data shape, expected {metadata.npix / main_header.nfiles} rows"
             )
+        f32_data = data.astype(np.float32, copy=False)
 
         # Update data range and write to file
         data_range = metadata.data_range
-        run_data_min = np.min(data, axis=0)
-        run_data_max = np.max(data, axis=0)
+        run_data_min = np.min(f32_data, axis=0)
+        run_data_max = np.max(f32_data, axis=0)
         data_range[:, 0] = np.minimum(data_range[:, 0], run_data_min)
         data_range[:, 1] = np.maximum(data_range[:, 1], run_data_max)
         self._sqw_io.seek(self._block_allocation_table[('pix', 'metadata')].position)
@@ -159,7 +160,6 @@ class Sqw:
 
         # Write data
         descriptor = self._block_allocation_table[('pix', 'data_wrap')]
-        f32_data = data.astype(np.float32, copy=False)
         offset = (
             descriptor.position  # start of block
             + 4  # sizeof(u32)
