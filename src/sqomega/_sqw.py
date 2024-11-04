@@ -164,7 +164,7 @@ class Sqw:
             descriptor.position  # start of block
             + 4  # sizeof(u32)
             + 8  # sizeof(64)
-            + run * data.shape[0] * data.shape[1] * data.dtype.itemsize  # run offset
+            + run * f32_data.nbytes  # run offset
         )
         self._sqw_io.seek(offset)
         self._sqw_io.write_array(f32_data)
